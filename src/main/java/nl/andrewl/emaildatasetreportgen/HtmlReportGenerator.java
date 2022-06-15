@@ -8,6 +8,10 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * An abstract parent class for reports that are generated using the Thymeleaf
+ * template engine to render HTML documents.
+ */
 public abstract class HtmlReportGenerator implements ReportGenerator {
 	private final TemplateEngine templateEngine;
 	private final String templateName;
@@ -17,6 +21,11 @@ public abstract class HtmlReportGenerator implements ReportGenerator {
 		this.templateName = templateName;
 	}
 
+	/**
+	 * Constructs the generator to use the specified template, which should be
+	 * present in the classpath under /templates.
+	 * @param templateName The name of the template.
+	 */
 	public HtmlReportGenerator(String templateName) {
 		this(fromClasspath("/templates/"), templateName);
 	}
