@@ -1,6 +1,7 @@
 package nl.andrewl.emaildatasetreportgen;
 
 import nl.andrewl.email_indexer.data.EmailDataset;
+import nl.andrewl.emaildatasetreportgen.cmd.AnalyzeQuery;
 import nl.andrewl.emaildatasetreportgen.cmd.TopThreads;
 import picocli.CommandLine;
 
@@ -11,7 +12,8 @@ import java.nio.file.Path;
 		description = "Analyze and generate reports for email datasets.",
 		mixinStandardHelpOptions = true,
 		subcommands = {
-				TopThreads.class
+				TopThreads.class,
+				AnalyzeQuery.class
 		}
 )
 public class ReportGen {

@@ -3,6 +3,8 @@ package nl.andrewl.emaildatasetreportgen;
 import nl.andrewl.email_indexer.data.Tag;
 import nl.andrewl.email_indexer.data.TagRepository;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class AnalysisUtils {
@@ -18,5 +20,25 @@ public final class AnalysisUtils {
 		} else {
 			return AkStatus.UNKNOWN;
 		}
+	}
+
+	public static double discountedCumulativeGain(List<Double> values) {
+		double sum = 0;
+		for (int i = 1; i <= values.size(); i++) {
+			sum += (values.get(i - 1) / log2(i + 1));
+		}
+		return sum;
+	}
+
+	public static double normalizedDiscountedCumulativeGain(List<Double> values) {
+		List<Double> sortedValues = new ArrayList<>(values);
+		sortedValues.sort(Collections.reverseOrder());
+		double realGain = discountedCumulativeGain(values);
+		double idealGain = discountedCumulativeGain(sortedValues);
+		return realGain / idealGain;
+	}
+
+	public static double log2(double n) {
+		return Math.log(n) / Math.log(2);
 	}
 }

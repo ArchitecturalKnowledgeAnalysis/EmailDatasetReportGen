@@ -23,7 +23,7 @@ void runTopThreads() {
     auto queries = getLuceneQueries();
     foreach (name, query; queries) {
         print("Getting top threads for lucene query: %s", name);
-        string cmd = format!"java -jar reportgen.jar %s top-threads -q \"%s\" -n 100"(CURRENT_DATASET_DIR, query);
+        string cmd = format!"java -jar reportgen.jar %s analyze-query -q \"%s\" -n 75"(CURRENT_DATASET_DIR, query);
         auto result = executeShell(cmd);
         writeln(result.output);
     }
