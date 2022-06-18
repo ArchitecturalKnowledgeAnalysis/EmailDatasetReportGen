@@ -19,7 +19,7 @@ void build() {
     runTopThreads();
 }
 
-void runTopThreads() {
+void runPrecisionAnalysis() {
     auto queries = getLuceneQueries();
     foreach (name, query; queries) {
         print("Getting top threads for lucene query: %s", name);
