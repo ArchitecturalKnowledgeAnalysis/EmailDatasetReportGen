@@ -66,6 +66,12 @@ public final class AnalysisUtils {
 		}
 	}
 
+	public static double avg(double[] values) {
+		double sum = 0;
+		for (double v : values) sum += v;
+		return sum / values.length;
+	}
+
 	public static double log2(double n) {
 		return Math.log(n) / Math.log(2);
 	}
