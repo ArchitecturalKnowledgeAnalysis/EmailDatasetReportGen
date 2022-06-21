@@ -5,6 +5,8 @@ import net.lingala.zip4j.model.ZipParameters;
 import net.lingala.zip4j.model.enums.CompressionLevel;
 import nl.andrewl.email_indexer.data.EmailDataset;
 import nl.andrewl.emaildatasetreportgen.cmd.CharacteristicReportGenerator;
+import nl.andrewl.emaildatasetreportgen.cmd.OverviewReportGenerator;
+import nl.andrewl.emaildatasetreportgen.cmd.PatternReportGenerator;
 import nl.andrewl.emaildatasetreportgen.cmd.PrecisionReportGenerator;
 
 import java.io.IOException;
@@ -32,13 +34,19 @@ public class ReportGen {
 		Files.createDirectory(outputDir);
 
 		// Run all reports.
+		new OverviewReportGenerator().generate(outputDir, ds);
 		new PrecisionReportGenerator().generate(outputDir, ds);
 		new CharacteristicReportGenerator().generate(outputDir, ds);
+		new PatternReportGenerator().generate(outputDir, ds);
 
 		ds.close().join();
 		System.out.println("All reports completed.");
 
 		// Save the results to a ZIP for convenience.
+		saveToZIP(reportDirName, outputDir);
+	}
+
+	private static void saveToZIP(String reportDirName, Path outputDir) throws IOException {
 		System.out.println("Saving to ZIP.");
 		ZipFile zip = new ZipFile(reportDirName + ".zip");
 		ZipParameters params = new ZipParameters();

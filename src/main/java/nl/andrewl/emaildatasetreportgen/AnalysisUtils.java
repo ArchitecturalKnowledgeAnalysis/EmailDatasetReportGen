@@ -4,8 +4,14 @@ import nl.andrewl.email_indexer.data.*;
 import nl.andrewl.email_indexer.data.search.EmailSearchResult;
 import nl.andrewl.email_indexer.data.search.EmailSearcher;
 import nl.andrewl.email_indexer.data.search.SearchFilter;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 
 public final class AnalysisUtils {
 	public static AkStatus getStatus(long id, TagRepository tagRepo, Collection<String> positiveTags, Collection<String> negativeTags) {
@@ -74,5 +80,22 @@ public final class AnalysisUtils {
 
 	public static double log2(double n) {
 		return Math.log(n) / Math.log(2);
+	}
+
+	public static void writeCSV(Path file, String[] headers, UnsafeConsumer<CSVPrinter> consumer) {
+		CSVFormat format = CSVFormat.Builder.create(CSVFormat.RFC4180).setHeader(headers).build();
+		try (
+				var writer = Files.newBufferedWriter(file);
+				var printer = new CSVPrinter(writer, format)
+		) {
+			consumer.accept(printer);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static void writeCSV(Path file, List<String> headers, UnsafeConsumer<CSVPrinter> consumer) {
+		String[] headersArray = headers.toArray(new String[0]);
+		writeCSV(file, headersArray, consumer);
 	}
 }

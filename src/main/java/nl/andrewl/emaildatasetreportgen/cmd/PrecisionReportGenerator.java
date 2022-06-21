@@ -1,6 +1,8 @@
 package nl.andrewl.emaildatasetreportgen.cmd;
 
-import nl.andrewl.email_indexer.data.*;
+import nl.andrewl.email_indexer.data.EmailDataset;
+import nl.andrewl.email_indexer.data.EmailRepository;
+import nl.andrewl.email_indexer.data.TagRepository;
 import nl.andrewl.email_indexer.data.search.EmailIndexSearcher;
 import nl.andrewl.emaildatasetreportgen.AkStatus;
 import nl.andrewl.emaildatasetreportgen.AnalysisUtils;
@@ -89,7 +91,6 @@ public class PrecisionReportGenerator implements ReportGenerator {
 		for (int n = 1; n <= rel.length; n++) {
 			double[] slice = new double[n];
 			System.arraycopy(rel, 0, slice, 0, n);
-//			double dcg = AnalysisUtils.discountedCumulativeGain(slice);
 			double ndcg = AnalysisUtils.normalizedDiscountedCumulativeGain(slice);
 			ndcgSeries.add(n, ndcg);
 			double avgPrecision = AnalysisUtils.avg(slice);
@@ -120,8 +121,8 @@ public class PrecisionReportGenerator implements ReportGenerator {
 		AkStatus status = AnalysisUtils.getStatus(id, tagRepo, positiveTags, negativeTags);
 		int count = counts.computeIfAbsent(status, s -> 0);
 		counts.put(status, count + 1);
-		for (EmailEntryPreview reply : repo.findAllReplies(id)) {
-			analyzeEmailRecursive(reply.id(), repo, tagRepo, positiveTags, negativeTags, counts);
+		for (long replyId : repo.findAllReplyIds(id)) {
+			analyzeEmailRecursive(replyId, repo, tagRepo, positiveTags, negativeTags, counts);
 		}
 	}
 

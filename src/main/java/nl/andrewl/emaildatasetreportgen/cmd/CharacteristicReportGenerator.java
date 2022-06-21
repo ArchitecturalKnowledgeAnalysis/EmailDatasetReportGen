@@ -4,6 +4,7 @@ import nl.andrewl.email_indexer.data.EmailDataset;
 import nl.andrewl.email_indexer.data.EmailEntryPreview;
 import nl.andrewl.email_indexer.data.EmailRepository;
 import nl.andrewl.email_indexer.data.TagRepository;
+import nl.andrewl.email_indexer.data.search.SearchFilter;
 import nl.andrewl.emaildatasetreportgen.*;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtils;
@@ -21,15 +22,13 @@ import java.util.*;
  * Generates characteristic report data.
  */
 public class CharacteristicReportGenerator implements ReportGenerator {
-	private record SizeData (List<Integer> akSizes, List<Integer> notAkSizes) {
-		public SizeData() {
-			this(new ArrayList<>(), new ArrayList<>());
-		}
-	}
-
-	private record SizeDataSet (SizeData anyTagData, Map<String, SizeData> tagData) {
+	private record SizeDataSet (List<Integer> anyTagData, List<Integer> notAkData, Map<String, List<Integer>> tagData) {
 		public SizeDataSet() {
-			this(new SizeData(), new HashMap<>());
+			this(new ArrayList<>(), new ArrayList<>(), new HashMap<>());
+		}
+
+		public void addTagSizeData(String tag, int size) {
+			tagData.computeIfAbsent(tag, t -> new ArrayList<>()).add(size);
 		}
 	}
 
@@ -37,127 +36,78 @@ public class CharacteristicReportGenerator implements ReportGenerator {
 	public void generate(Path outputPath, EmailDataset ds) throws Exception {
 		Path myDir = outputPath.resolve("characteristics");
 		Files.createDirectory(myDir);
-		var emailRepo = new EmailRepository(ds);
-		var tagRepo = new TagRepository(ds);
 
-		var emailSizeData = getIndividualEmailSizeData(ds, tagRepo);
+		System.out.println("Generating characteristic data.");
+
+		var emailSizeData = getSizeData(ds, (email, emailRepo, tagRepo) -> email.body().length(), false);
 		generateBoxplot(emailSizeData, "Email Body Size", myDir.resolve("body_size.png"), "Email Body Size (# of characters)");
 
-		var wordCountData = getIndividualEmailWordCountData(ds, tagRepo);
+		var wordCountData = getSizeData(ds, (email, emailRepo, tagRepo) -> email.body().split("\\s+").length, false);
 		generateBoxplot(wordCountData, "Email Word Count", myDir.resolve("word_count.png"), "Email Word Count (# of words)");
 
-		var threadSizeData = getEmailThreadSizeData(ds, emailRepo, tagRepo);
+		var threadSizeData = getSizeData(ds, (email, emailRepo, tagRepo) -> (int) emailRepo.countRepliesRecursive(email.id()) + 1, true);
 		generateBoxplot(threadSizeData, "Email Thread Size", myDir.resolve("thread_size.png"), "Email Thread Size (# of emails)");
 
-		var participantSizeData = getEmailParticipantCountData(ds, emailRepo, tagRepo);
+		var participantSizeData = getSizeData(ds, (email, emailRepo, tagRepo) -> getUniqueParticipantCount(email.id(), emailRepo), true);
 		generateBoxplot(participantSizeData, "Email Thread Participation", myDir.resolve("thread_participation.png"), "Email Thread Participation (# of participants)");
+
+		Map<String, SizeDataSet> dataSets = Map.of(
+				"Email Body Size", emailSizeData,
+				"Email Word Count", wordCountData,
+				"Email Thread Size", threadSizeData,
+				"Email Thread Participation", participantSizeData
+		);
+
+		Set<String> allTags = new HashSet<>();
+		for (var dataset : dataSets.values()) allTags.addAll(dataset.tagData.keySet());
+		List<String> tagsOrdered = allTags.stream().sorted().toList();
+
+		List<String> headers = new ArrayList<>();
+		headers.add("CHARACTERISTIC");
+		headers.add("NOT_AK");
+		headers.add("ANY_TAG");
+		headers.addAll(tagsOrdered);
+		AnalysisUtils.writeCSV(myDir.resolve("data.csv"), headers, printer -> {
+			for (var entry : dataSets.entrySet()) {
+				SizeDataSet dataSet = entry.getValue();
+				printer.print(entry.getKey());
+				printer.print(dataSet.notAkData);
+				printer.print(dataSet.anyTagData);
+				for (String tag : tagsOrdered) {
+					if (dataSet.tagData.containsKey(tag)) {
+						printer.print(dataSet.tagData.get(tag));
+					} else {
+						printer.print(Collections.emptyList());
+					}
+				}
+				printer.println();
+			}
+		});
 	}
 
-	private SizeDataSet getIndividualEmailSizeData(EmailDataset ds, TagRepository tagRepo) {
-		SizeData anyTagSizeData = new SizeData();
-		Map<String, SizeData> tagSizeData = new HashMap<>();
-
+	private SizeDataSet getSizeData(EmailDataset ds, EmailCharacteristic characteristic, boolean threaded) {
+		SizeDataSet sizeData = new SizeDataSet();
+		var tagRepo = new TagRepository(ds);
+		var emailRepo = new EmailRepository(ds);
+		Collection<SearchFilter> filters = threaded ? Filters.taggedThreads(tagRepo) : Filters.taggedEmails(tagRepo);
 		AnalysisUtils.doForAllEmails(
 				ds,
-				Filters.taggedEmails(tagRepo),
+				filters,
 				(email, tags) -> {
-					int bodyLength = email.body().length();
+					int v = characteristic.getCharacteristic(email, emailRepo, tagRepo);
 					AkStatus statusAnyTag = AnalysisUtils.getStatus(email.id(), tagRepo, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS);
 					switch (statusAnyTag) {
-						case ARCHITECTURAL -> anyTagSizeData.akSizes.add(bodyLength);
-						case NOT_ARCHITECTURAL -> anyTagSizeData.notAkSizes.add(bodyLength);
+						case ARCHITECTURAL -> sizeData.anyTagData.add(v);
+						case NOT_ARCHITECTURAL -> sizeData.notAkData.add(v);
 					}
 
 					for (String tag : ReportGen.POSITIVE_TAGS) {
 						AkStatus tagStatus = AnalysisUtils.getStatus(email.id(), tagRepo, Collections.singleton(tag), ReportGen.NEGATIVE_TAGS);
-						SizeData sizeData = tagSizeData.computeIfAbsent(tag, t -> new SizeData());
-						switch (tagStatus) {
-							case ARCHITECTURAL -> sizeData.akSizes.add(bodyLength);
-							case NOT_ARCHITECTURAL -> sizeData.notAkSizes.add(bodyLength);
-						}
+						if (tagStatus == AkStatus.ARCHITECTURAL) sizeData.addTagSizeData(tag, v);
 					}
 				}
 		);
-		return new SizeDataSet(anyTagSizeData, tagSizeData);
-	}
-
-	private SizeDataSet getIndividualEmailWordCountData(EmailDataset ds, TagRepository tagRepo) {
-		SizeDataSet data = new SizeDataSet();
-		AnalysisUtils.doForAllEmails(
-				ds,
-				Filters.taggedEmails(tagRepo),
-				(email, tags) -> {
-					int wordCount = email.body().split("\\s+").length;
-					AkStatus statusAnyTag = AnalysisUtils.getStatus(email.id(), tagRepo, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS);
-					switch (statusAnyTag) {
-						case ARCHITECTURAL -> data.anyTagData.akSizes.add(wordCount);
-						case NOT_ARCHITECTURAL -> data.anyTagData.notAkSizes.add(wordCount);
-					}
-
-					for (String tag : ReportGen.POSITIVE_TAGS) {
-						AkStatus tagStatus = AnalysisUtils.getStatus(email.id(), tagRepo, Collections.singleton(tag), ReportGen.NEGATIVE_TAGS);
-						SizeData sizeData = data.tagData.computeIfAbsent(tag, t -> new SizeData());
-						switch (tagStatus) {
-							case ARCHITECTURAL -> sizeData.akSizes.add(wordCount);
-							case NOT_ARCHITECTURAL -> sizeData.notAkSizes.add(wordCount);
-						}
-					}
-				}
-		);
-		return data;
-	}
-
-	private SizeDataSet getEmailThreadSizeData(EmailDataset ds, EmailRepository emailRepo, TagRepository tagRepo) {
-		SizeData anyTagSizeData = new SizeData();
-		Map<String, SizeData> tagSizeData = new HashMap<>();
-		AnalysisUtils.doForAllEmails(
-				ds,
-				Filters.taggedThreads(tagRepo),
-				(email, tags) -> {
-					int threadSize = (int) emailRepo.countRepliesRecursive(email.id());
-					AkStatus statusAnyTag = AnalysisUtils.getStatus(email.id(), tagRepo, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS);
-					switch (statusAnyTag) {
-						case ARCHITECTURAL -> anyTagSizeData.akSizes.add(threadSize);
-						case NOT_ARCHITECTURAL -> anyTagSizeData.notAkSizes.add(threadSize);
-					}
-
-					for (String tag : ReportGen.POSITIVE_TAGS) {
-						AkStatus tagStatus = AnalysisUtils.getStatus(email.id(), tagRepo, Collections.singleton(tag), ReportGen.NEGATIVE_TAGS);
-						SizeData sizeData = tagSizeData.computeIfAbsent(tag, t -> new SizeData());
-						switch (tagStatus) {
-							case ARCHITECTURAL -> sizeData.akSizes.add(threadSize);
-							case NOT_ARCHITECTURAL -> sizeData.notAkSizes.add(threadSize);
-						}
-					}
-				}
-		);
-		return new SizeDataSet(anyTagSizeData, tagSizeData);
-	}
-
-	private SizeDataSet getEmailParticipantCountData(EmailDataset ds, EmailRepository emailRepo, TagRepository tagRepo) {
-		SizeDataSet data = new SizeDataSet();
-		AnalysisUtils.doForAllEmails(
-				ds,
-				Filters.taggedThreads(tagRepo),
-				(email, tags) -> {
-					int participantCount = getUniqueParticipantCount(email.id(), emailRepo);
-					AkStatus statusAnyTag = AnalysisUtils.getStatus(email.id(), tagRepo, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS);
-					switch (statusAnyTag) {
-						case ARCHITECTURAL -> data.anyTagData.akSizes.add(participantCount);
-						case NOT_ARCHITECTURAL -> data.anyTagData.notAkSizes.add(participantCount);
-					}
-
-					for (String tag : ReportGen.POSITIVE_TAGS) {
-						AkStatus tagStatus = AnalysisUtils.getStatus(email.id(), tagRepo, Collections.singleton(tag), ReportGen.NEGATIVE_TAGS);
-						SizeData sizeData = data.tagData.computeIfAbsent(tag, t -> new SizeData());
-						switch (tagStatus) {
-							case ARCHITECTURAL -> sizeData.akSizes.add(participantCount);
-							case NOT_ARCHITECTURAL -> sizeData.notAkSizes.add(participantCount);
-						}
-					}
-				}
-		);
-		return data;
+		return sizeData;
 	}
 
 	private int getUniqueParticipantCount(long rootId, EmailRepository emailRepo) {
@@ -175,14 +125,13 @@ public class CharacteristicReportGenerator implements ReportGenerator {
 
 	private void generateBoxplot(SizeDataSet dataSet, String title, Path file, String valueAxisLabel) throws IOException {
 		DefaultBoxAndWhiskerCategoryDataset data = new DefaultBoxAndWhiskerCategoryDataset();
-		data.add(dataSet.anyTagData.akSizes, "Architectural", "Any Tag");
-		data.add(dataSet.anyTagData.notAkSizes, "Non-architectural", "Any Tag");
+		data.add(dataSet.anyTagData, "Architectural", "Any Tag");
+		data.add(dataSet.notAkData, "Non-architectural", "Any Tag");
 
 		List<String> tags = dataSet.tagData.keySet().stream().sorted().toList();
 		for (var tag : tags) {
 			var tagData = dataSet.tagData.get(tag);
-			data.add(tagData.akSizes, "Architectural", tag);
-			data.add(tagData.notAkSizes, "Non-architectural", tag);
+			data.add(tagData, "Architectural", tag);
 		}
 
 		JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(
