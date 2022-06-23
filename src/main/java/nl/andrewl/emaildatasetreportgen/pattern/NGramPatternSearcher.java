@@ -1,4 +1,4 @@
-package nl.andrewl.emaildatasetreportgen.cmd;
+package nl.andrewl.emaildatasetreportgen.pattern;
 
 import nl.andrewl.email_indexer.data.EmailEntry;
 import nl.andrewl.email_indexer.data.EmailRepository;
@@ -10,49 +10,34 @@ import nl.andrewl.emaildatasetreportgen.ReportGen;
 import java.util.*;
 
 public class NGramPatternSearcher implements DatasetEmailConsumer {
-	public record Result(List<String> pattern, int count) {}
-
-	private final List<List<String>> possiblePatterns;
-	private final Map<List<String>, Integer> results;
+	private final NGramSearchResult result;
 	private final EmailRepository emailRepo;
 	private final TagRepository tagRepo;
 	private final boolean skipNotAk;
 
 	public NGramPatternSearcher(List<List<String>> possiblePatterns, EmailRepository emailRepo, TagRepository tagRepo, boolean skipNotAk) {
-		this.possiblePatterns = possiblePatterns;
+		this.result = new NGramSearchResult(possiblePatterns);
 		this.emailRepo = emailRepo;
 		this.tagRepo = tagRepo;
 		this.skipNotAk = skipNotAk;
-		this.results = new HashMap<>();
-		for (List<String> pattern : possiblePatterns) {
-			results.put(pattern, 0);
-		}
 	}
 
-	public Map<List<String>, Integer> getResults() {
-		return results;
-	}
-
-	public List<Result> getResultsOrdered() {
-		List<Result> resultsList = new ArrayList<>(results.size());
-		for (var entry : results.entrySet()) {
-			resultsList.add(new Result(entry.getKey(), entry.getValue()));
-		}
-		resultsList.sort(Comparator.comparingInt(Result::count).reversed());
-		return resultsList;
+	public NGramSearchResult getResult() {
+		return result;
 	}
 
 	@Override
-	public void consumeEmail(EmailEntry email, Collection<Tag> tags) throws Exception {
+	public void consumeEmail(EmailEntry email, Collection<Tag> tags) {
 		patternSearchRecursive(email.id());
 	}
 
 	private void patternSearchRecursive(long emailId) {
 		List<String> tags = tagRepo.getTags(emailId).stream().map(Tag::name).toList();
 		for (String tag : tags) {
-			for (List<String> pattern : possiblePatterns) {
-				if (pattern.size() > 0 && pattern.get(0).equals(tag) && hasPattern(emailId, pattern)) {
-					results.put(pattern, results.get(pattern) + 1);
+			for (List<String> pattern : result.patterns()) {
+				if (pattern.size() > 0 && pattern.get(0).equals(tag)) {
+					List<List<Long>> matchingSequences = findMatchingSequences(emailId, pattern);
+					result.resultMap().get(pattern).emailIdSequences().addAll(matchingSequences);
 				}
 			}
 		}
@@ -86,5 +71,33 @@ public class NGramPatternSearcher implements DatasetEmailConsumer {
 					.anyMatch(replyId -> hasPattern(replyId, pattern.subList(1, pattern.size())));
 			return thisEmailMatches && anyChildMatches;
 		}
+	}
+
+	private List<List<Long>> findMatchingSequences(long emailId, List<String> pattern) {
+		if (pattern.size() <= 0) return new ArrayList<>();
+		List<String> tags = tagRepo.getTags(emailId).stream().map(Tag::name).toList();
+		boolean thisEmailMatches = tags.contains(pattern.get(0));
+		List<List<Long>> sequences = new ArrayList<>();
+		if (thisEmailMatches) {
+			if (pattern.size() == 1) {
+				List<Long> sequence = new ArrayList<>();
+				sequence.add(emailId);
+				sequences.add(sequence);
+			} else {
+				for (long replyId : emailRepo.findAllReplyIds(emailId)) {
+					List<List<Long>> replySequences = findMatchingSequences(replyId, pattern.subList(1, pattern.size()));
+					for (List<Long> sequence : replySequences) {
+						sequence.add(0, emailId);
+						sequences.add(sequence);
+					}
+				}
+			}
+		} else if (skipNotAk && tags.stream().anyMatch(ReportGen.NEGATIVE_TAGS::contains)) {
+			for (long replyId : emailRepo.findAllReplyIds(emailId)) {
+				List<List<Long>> replySequences = findMatchingSequences(replyId, pattern);
+				sequences.addAll(replySequences);
+			}
+		}
+		return sequences;
 	}
 }

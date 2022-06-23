@@ -1,25 +1,23 @@
 package nl.andrewl.emaildatasetreportgen.cmd;
 
 import nl.andrewl.email_indexer.data.EmailDataset;
-import nl.andrewl.email_indexer.data.EmailRepository;
-import nl.andrewl.email_indexer.data.TagRepository;
-import nl.andrewl.email_indexer.data.search.EmailIndexSearcher;
-import nl.andrewl.emaildatasetreportgen.AkStatus;
 import nl.andrewl.emaildatasetreportgen.AnalysisUtils;
 import nl.andrewl.emaildatasetreportgen.ReportGen;
 import nl.andrewl.emaildatasetreportgen.ReportGenerator;
-import org.apache.lucene.queryparser.classic.ParseException;
+import nl.andrewl.emaildatasetreportgen.precision.PrecisionAnalyzer;
+import nl.andrewl.emaildatasetreportgen.precision.PrecisionResult;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
-import org.jfree.data.xy.XYDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Generates report data for search precision stuff.
@@ -27,14 +25,12 @@ import java.util.*;
 public class PrecisionReportGenerator implements ReportGenerator {
 	private static final int MAX_RESULTS = 75;
 
-	private record PrecisionResults(XYSeries ndcg, XYSeries precision) {}
-
-
 	@Override
 	public void generate(Path outputPath, EmailDataset ds) throws Exception {
 		Path myDir = outputPath.resolve("precision");
 		Files.createDirectory(myDir);
 		List<String> tags = ReportGen.POSITIVE_TAGS.stream().sorted().toList();
+		PrecisionAnalyzer allTagsPrecisionAnalyzer = new PrecisionAnalyzer(ds, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS, MAX_RESULTS);
 
 		XYSeriesCollection ndcgCollection = new XYSeriesCollection();
 		Map<String, XYSeriesCollection> tagNdcgCollections = new HashMap<>();
@@ -46,21 +42,34 @@ public class PrecisionReportGenerator implements ReportGenerator {
 		for (var entry : queries.entrySet()) {
 			String queryName = entry.getKey();
 			String query = entry.getValue();
+			Path queryDir = myDir.resolve(queryName);
+			Files.createDirectory(queryDir);
 
 			// Compute general NDCG for any AK tag.
-			PrecisionResults allTagsResults = doIterativeNDCG(ds, query, queryName + "_all_tags_ndcg", ReportGen.POSITIVE_TAGS);
-			allTagsResults.ndcg.setKey(queryName);
-			allTagsResults.precision.setKey(queryName);
-			ndcgCollection.addSeries(allTagsResults.ndcg);
-			precisionCollection.addSeries(allTagsResults.precision);
+			PrecisionResult allTagsResult = allTagsPrecisionAnalyzer.analyzeSearch(query);
+			savePrecisionCSV(queryDir.resolve("all-tags.csv"), allTagsResult);
+
+			// Add data for charting.
+			XYSeries allTagsNdcgSeries = allTagsResult.ndcgSeries();
+			XYSeries allTagsPrecisionSeries = allTagsResult.precisionSeries();
+			allTagsNdcgSeries.setKey(queryName);
+			allTagsPrecisionSeries.setKey(queryName);
+			ndcgCollection.addSeries(allTagsNdcgSeries);
+			precisionCollection.addSeries(allTagsPrecisionSeries);
 
 			// Compute one per AK tag.
 			for (String tag : ReportGen.POSITIVE_TAGS) {
-				PrecisionResults specificTagResults = doIterativeNDCG(ds, query, queryName + "_" + tag, Collections.singleton(tag));
-				specificTagResults.ndcg.setKey(queryName);
-				specificTagResults.precision.setKey(queryName);
-				tagNdcgCollections.computeIfAbsent(tag, s -> new XYSeriesCollection()).addSeries(specificTagResults.ndcg);
-				tagPrecisionCollections.computeIfAbsent(tag, s -> new XYSeriesCollection()).addSeries(specificTagResults.precision);
+				PrecisionAnalyzer tagPrecisionAnalyzer = new PrecisionAnalyzer(ds, Collections.singleton(tag), ReportGen.NEGATIVE_TAGS, MAX_RESULTS);
+				PrecisionResult tagResult = tagPrecisionAnalyzer.analyzeSearch(query);
+				savePrecisionCSV(queryDir.resolve(tag + ".csv"), tagResult);
+
+				// Data for charting.
+				XYSeries tagNdcgSeries = tagResult.ndcgSeries();
+				XYSeries tagPrecisionSeries = tagResult.precisionSeries();
+				tagNdcgSeries.setKey(queryName);
+				tagPrecisionSeries.setKey(queryName);
+				tagNdcgCollections.computeIfAbsent(tag, s -> new XYSeriesCollection()).addSeries(tagNdcgSeries);
+				tagPrecisionCollections.computeIfAbsent(tag, s -> new XYSeriesCollection()).addSeries(tagPrecisionSeries);
 			}
 		}
 
@@ -83,55 +92,12 @@ public class PrecisionReportGenerator implements ReportGenerator {
 		}
 	}
 
-	private PrecisionResults doIterativeNDCG(EmailDataset ds, String query, String name, Collection<String> positiveTags) throws IOException, ParseException {
-		System.out.printf("Computing NDCG %s using tags %s%n", name, positiveTags);
-		double[] rel = getRelevances(ds, query, positiveTags, ReportGen.NEGATIVE_TAGS);
-		XYSeries ndcgSeries = new XYSeries(name);
-		XYSeries precisionSeries = new XYSeries(name);
-		for (int n = 1; n <= rel.length; n++) {
-			double[] slice = new double[n];
-			System.arraycopy(rel, 0, slice, 0, n);
-			double ndcg = AnalysisUtils.normalizedDiscountedCumulativeGain(slice);
-			ndcgSeries.add(n, ndcg);
-			double avgPrecision = AnalysisUtils.avg(slice);
-			precisionSeries.add(n, avgPrecision);
-		}
-		return new PrecisionResults(ndcgSeries, precisionSeries);
-	}
-
-	private double[] getRelevances(EmailDataset ds, String query, Collection<String> positiveTags, Collection<String> negativeTags) throws IOException, ParseException {
-		var emailRepo = new EmailRepository(ds);
-		var tagRepo = new TagRepository(ds);
-		return new EmailIndexSearcher().search(ds, query, MAX_RESULTS).stream()
-				.mapToDouble(id -> getAkWeight(id, emailRepo, tagRepo, positiveTags, negativeTags))
-				.toArray();
-	}
-
-	private double getAkWeight(long id, EmailRepository repo, TagRepository tagRepo, Collection<String> positiveTags, Collection<String> negativeTags) {
-		Map<AkStatus, Integer> counts = new HashMap<>();
-		analyzeEmailRecursive(id, repo, tagRepo, positiveTags, negativeTags, counts);
-		int akCount = counts.computeIfAbsent(AkStatus.ARCHITECTURAL, s -> 0);
-		int notAkCount = counts.computeIfAbsent(AkStatus.NOT_ARCHITECTURAL, s -> 0);
-		int categorizedCount = akCount + notAkCount;
-		if (categorizedCount == 0) return 0;
-		return (double) akCount / (double) categorizedCount;
-	}
-
-	private void analyzeEmailRecursive(long id, EmailRepository repo, TagRepository tagRepo, Collection<String> positiveTags, Collection<String> negativeTags, Map<AkStatus, Integer> counts) {
-		AkStatus status = AnalysisUtils.getStatus(id, tagRepo, positiveTags, negativeTags);
-		int count = counts.computeIfAbsent(status, s -> 0);
-		counts.put(status, count + 1);
-		for (long replyId : repo.findAllReplyIds(id)) {
-			analyzeEmailRecursive(replyId, repo, tagRepo, positiveTags, negativeTags, counts);
-		}
-	}
-
-	private void createNdcgChart(XYDataset ds, String title, Path file) throws IOException {
-		JFreeChart chart = ChartFactory.createXYLineChart(title, "N", "Value", ds);
-		chart.removeLegend();
-
-		try (var out = Files.newOutputStream(file)) {
-			ChartUtils.writeChartAsPNG(out, chart, 500, 500);
-		}
+	private void savePrecisionCSV(Path file, PrecisionResult result) {
+		AnalysisUtils.writeCSV(file, new String[]{"N", "NDCG", "PRECISION"}, printer -> {
+			for (int i = 0; i < result.ndcg().length; i++) {
+				int n = i + 1;
+				printer.printRecord(n, result.ndcg()[i], result.precision()[i]);
+			}
+		});
 	}
 }

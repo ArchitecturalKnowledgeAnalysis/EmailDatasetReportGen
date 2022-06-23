@@ -1,12 +1,14 @@
 package nl.andrewl.emaildatasetreportgen.cmd;
 
 import nl.andrewl.email_indexer.data.EmailDataset;
+import nl.andrewl.email_indexer.data.EmailRepository;
 import nl.andrewl.email_indexer.data.Tag;
 import nl.andrewl.email_indexer.data.TagRepository;
 import nl.andrewl.emaildatasetreportgen.AnalysisUtils;
 import nl.andrewl.emaildatasetreportgen.Filters;
 import nl.andrewl.emaildatasetreportgen.ReportGen;
 import nl.andrewl.emaildatasetreportgen.ReportGenerator;
+import nl.andrewl.emaildatasetreportgen.relevance.RelevanceAnalyzer;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
@@ -15,7 +17,11 @@ import org.jfree.chart.axis.CategoryLabelPositions;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.chart.renderer.category.StandardBarPainter;
+import org.jfree.chart.renderer.xy.StandardXYBarPainter;
+import org.jfree.chart.renderer.xy.XYBarRenderer;
 import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.statistics.SimpleHistogramBin;
+import org.jfree.data.statistics.SimpleHistogramDataset;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,19 +36,24 @@ public class OverviewReportGenerator implements ReportGenerator {
 		System.out.println("Generating overview.");
 		Map<String, Integer> emailTagCounts = new HashMap<>();
 		Map<String, Integer> threadTagCounts = new HashMap<>();
+		List<Double> relevances = new ArrayList<>();
+		var emailRepo = new EmailRepository(ds);
 		var tagRepo = new TagRepository(ds);
+		RelevanceAnalyzer relevanceAnalyzer = new RelevanceAnalyzer(emailRepo, tagRepo, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS);
 		AnalysisUtils.doForAllEmails(ds, Filters.taggedEmails(tagRepo), (email, tags) -> {
-			for (Tag tag : tags) {
-				int currentCount = emailTagCounts.computeIfAbsent(tag.name(), t -> 0);
-				emailTagCounts.put(tag.name(), currentCount + 1);
-			}
-			if (email.parentId() == null) {
+			if (email.parentId() == null) {// If the email is the start of a thread.
+				if (!tags.isEmpty()) relevances.add(relevanceAnalyzer.analyzeThread(email.id()));
 				Set<Tag> threadTags = new HashSet<>();
 				threadTags.addAll(tags);
 				threadTags.addAll(tagRepo.getAllChildTags(email.id()));
 				for (Tag tag : threadTags) {
 					int currentCount = threadTagCounts.computeIfAbsent(tag.name(), t -> 0);
 					threadTagCounts.put(tag.name(), currentCount + 1);
+				}
+			} else {// Separate logic for individual emails. This avoids having to do a separate pass.
+				for (Tag tag : tags) {
+					int currentCount = emailTagCounts.computeIfAbsent(tag.name(), t -> 0);
+					emailTagCounts.put(tag.name(), currentCount + 1);
 				}
 			}
 		});
@@ -93,5 +104,24 @@ public class OverviewReportGenerator implements ReportGenerator {
 		CategoryAxis domainAxis2 = plot2.getDomainAxis();
 		domainAxis2.setCategoryLabelPositions(CategoryLabelPositions.UP_45);
 		ChartUtils.saveChartAsPNG(myDir.resolve("thread_tag_count.png").toFile(), chart2, 500, 500);
+
+		// Write relevance data
+		AnalysisUtils.writeCSV(myDir.resolve("relevances.csv"), List.of("RELEVANCE"), printer -> {
+			printer.printRecords(relevances);
+		});
+
+		SimpleHistogramDataset relevancesDataset = new SimpleHistogramDataset("Relevance");
+		double[] relevancesArray = relevances.stream().mapToDouble(v -> v).toArray();
+		int binCount = 10;
+		double binSize = 1.0 / binCount;
+		for (int i = 0; i < binCount; i++) {
+			boolean includeUpper = i == binCount - 1;
+			relevancesDataset.addBin(new SimpleHistogramBin(binSize * i, binSize * (i + 1), true, includeUpper));
+		}
+		relevancesDataset.addObservations(relevancesArray);
+		JFreeChart relevancesChart = ChartFactory.createHistogram("Email Thread Relevance", "Relevance", "Frequency", relevancesDataset);
+		XYBarRenderer relevancesBarRenderer = (XYBarRenderer) relevancesChart.getXYPlot().getRenderer();
+		relevancesBarRenderer.setBarPainter(new StandardXYBarPainter());
+		ChartUtils.saveChartAsPNG(myDir.resolve("relevances.png").toFile(), relevancesChart, 500, 500);
 	}
 }
