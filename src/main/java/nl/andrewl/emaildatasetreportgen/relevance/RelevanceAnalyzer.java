@@ -22,6 +22,12 @@ public class RelevanceAnalyzer {
 		this.negativeTags = negativeTags;
 	}
 
+	/**
+	 * Computes the relevance of an email thread, which is defined as the ratio
+	 * of architectural emails to non-architectural emails.
+	 * @param emailId The id of the root email in the thread.
+	 * @return The thread's relevance, from 0 to 1, inclusive.
+	 */
 	public double analyzeThread(long emailId) {
 		Map<AkStatus, Integer> counts = new HashMap<>();
 		analyzeEmailRecursive(emailId, counts);

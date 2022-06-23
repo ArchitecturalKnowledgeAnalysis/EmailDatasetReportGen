@@ -23,7 +23,7 @@ public class ReportGen {
 	public static final List<String> NEGATIVE_TAGS = List.of("not-ak");
 
 	public static void main(String[] args) throws Exception {
-		Path datasetPath = Path.of("/home/andrew/Programming/ArchitecturalKnowledgeAnalysis/Thesis/datasets/current");
+		Path datasetPath = Path.of(args[0]);
 		EmailDataset ds = EmailDataset.open(datasetPath).join();
 		LocalDateTime now = LocalDateTime.now();
 		String reportDirName = String.format(
