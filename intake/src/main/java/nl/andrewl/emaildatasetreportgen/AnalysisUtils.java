@@ -4,26 +4,11 @@ import nl.andrewl.email_indexer.data.*;
 import nl.andrewl.email_indexer.data.search.EmailSearchResult;
 import nl.andrewl.email_indexer.data.search.EmailSearcher;
 import nl.andrewl.email_indexer.data.search.SearchFilter;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVPrinter;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
 public final class AnalysisUtils {
-	public static AkStatus getStatus(long id, TagRepository tagRepo, Collection<String> positiveTags, Collection<String> negativeTags) {
-		List<Tag> tags = tagRepo.getTags(id);
-		if (tags.stream().anyMatch(t -> positiveTags.contains(t.name().toLowerCase()))) {
-			return AkStatus.ARCHITECTURAL;
-		} else if (tags.stream().anyMatch(t -> negativeTags.contains(t.name().toLowerCase()))) {
-			return AkStatus.NOT_ARCHITECTURAL;
-		} else {
-			return AkStatus.UNKNOWN;
-		}
-	}
-
 	public static void doForAllEmails(EmailDataset ds, Collection<SearchFilter> filters, DatasetEmailConsumer consumer) {
 		var searcher = new EmailSearcher(ds);
 		var emailRepo = new EmailRepository(ds);
@@ -42,78 +27,5 @@ public final class AnalysisUtils {
 			}
 			if (!result.hasNextPage()) break;
 		}
-	}
-
-	public static double discountedCumulativeGain(double[] relevances) {
-		double sum = 0;
-		for (int i = 1; i <= relevances.length; i++) {
-			sum += (relevances[i - 1] / log2(i + 1));
-		}
-		return sum;
-	}
-
-	public static double normalizedDiscountedCumulativeGain(double[] relevances, double[] idealRelevances) {
-		double realGain = discountedCumulativeGain(relevances);
-		double idealGain = discountedCumulativeGain(idealRelevances);
-		return realGain / idealGain;
-	}
-
-	public static double[] iterativeNdcg(double[] relevances, double[] idealRelevances) {
-		final int size = Math.min(relevances.length, idealRelevances.length);
-		double[] ndcgValues = new double[size];
-		for (int i = 0; i < size; i++) {
-			final int n = i + 1;
-			double[] relevancesToN = new double[n];
-			double[] idealRelevancesToN = new double[n];
-			System.arraycopy(relevances, 0, relevancesToN, 0, n);
-			System.arraycopy(idealRelevances, 0, idealRelevancesToN, 0, n);
-			ndcgValues[i] = normalizedDiscountedCumulativeGain(relevancesToN, idealRelevancesToN);
-		}
-		return ndcgValues;
-	}
-
-	public static void reverse(double[] a) {
-		for (int i = 0; i < a.length / 2; i++) {
-			double tmp = a[i];
-			a[i] = a[a.length - i - 1];
-			a[a.length - i - 1] = tmp;
-		}
-	}
-
-	public static double avg(double[] values) {
-		double sum = 0;
-		for (double v : values) sum += v;
-		return sum / values.length;
-	}
-
-	public static double log2(double n) {
-		return Math.log(n) / Math.log(2);
-	}
-
-	public static void writeCSV(Path file, String[] headers, UnsafeConsumer<CSVPrinter> consumer) {
-		CSVFormat format = CSVFormat.Builder.create(CSVFormat.RFC4180).setHeader(headers).build();
-		try (
-				var writer = Files.newBufferedWriter(file);
-				var printer = new CSVPrinter(writer, format)
-		) {
-			consumer.accept(printer);
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	public static void writeCSV(Path file, List<String> headers, UnsafeConsumer<CSVPrinter> consumer) {
-		String[] headersArray = headers.toArray(new String[0]);
-		writeCSV(file, headersArray, consumer);
-	}
-
-	public static void printArray(double[] a) {
-		StringBuilder sb = new StringBuilder("[");
-		for (int i = 0; i < a.length; i++) {
-			sb.append(String.format("%.2f", a[i]));
-			if (i < a.length - 1) sb.append(", ");
-		}
-		sb.append("]");
-		System.out.println(sb);
 	}
 }
