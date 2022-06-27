@@ -9,7 +9,6 @@ import org.apache.commons.csv.CSVPrinter;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -45,23 +44,32 @@ public final class AnalysisUtils {
 		}
 	}
 
-	public static double discountedCumulativeGain(double[] values) {
+	public static double discountedCumulativeGain(double[] relevances) {
 		double sum = 0;
-		for (int i = 1; i <= values.length; i++) {
-			sum += (values[i - 1] / log2(i + 1));
+		for (int i = 1; i <= relevances.length; i++) {
+			sum += (relevances[i - 1] / log2(i + 1));
 		}
 		return sum;
 	}
 
-	public static double normalizedDiscountedCumulativeGain(double[] values) {
-		double[] sortedValues = new double[values.length];
-		System.arraycopy(values, 0, sortedValues, 0, values.length);
-		Arrays.sort(sortedValues); // Sort from low to high.
-		reverse(sortedValues); // Reverse so we're from high to low.
-
-		double realGain = discountedCumulativeGain(values);
-		double idealGain = discountedCumulativeGain(sortedValues);
+	public static double normalizedDiscountedCumulativeGain(double[] relevances, double[] idealRelevances) {
+		double realGain = discountedCumulativeGain(relevances);
+		double idealGain = discountedCumulativeGain(idealRelevances);
 		return realGain / idealGain;
+	}
+
+	public static double[] iterativeNdcg(double[] relevances, double[] idealRelevances) {
+		final int size = Math.min(relevances.length, idealRelevances.length);
+		double[] ndcgValues = new double[size];
+		for (int i = 0; i < size; i++) {
+			final int n = i + 1;
+			double[] relevancesToN = new double[n];
+			double[] idealRelevancesToN = new double[n];
+			System.arraycopy(relevances, 0, relevancesToN, 0, n);
+			System.arraycopy(idealRelevances, 0, idealRelevancesToN, 0, n);
+			ndcgValues[i] = normalizedDiscountedCumulativeGain(relevancesToN, idealRelevancesToN);
+		}
+		return ndcgValues;
 	}
 
 	public static void reverse(double[] a) {
@@ -97,5 +105,15 @@ public final class AnalysisUtils {
 	public static void writeCSV(Path file, List<String> headers, UnsafeConsumer<CSVPrinter> consumer) {
 		String[] headersArray = headers.toArray(new String[0]);
 		writeCSV(file, headersArray, consumer);
+	}
+
+	public static void printArray(double[] a) {
+		StringBuilder sb = new StringBuilder("[");
+		for (int i = 0; i < a.length; i++) {
+			sb.append(String.format("%.2f", a[i]));
+			if (i < a.length - 1) sb.append(", ");
+		}
+		sb.append("]");
+		System.out.println(sb);
 	}
 }

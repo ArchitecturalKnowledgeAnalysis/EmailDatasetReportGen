@@ -1,7 +1,6 @@
 package nl.andrewl.emaildatasetreportgen.cmd;
 
 import nl.andrewl.email_indexer.data.EmailDataset;
-import nl.andrewl.email_indexer.data.EmailRepository;
 import nl.andrewl.email_indexer.data.Tag;
 import nl.andrewl.email_indexer.data.TagRepository;
 import nl.andrewl.emaildatasetreportgen.AnalysisUtils;
@@ -28,6 +27,12 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class OverviewReportGenerator implements ReportGenerator {
+	private final RelevanceAnalyzer relevanceAnalyzer;
+
+	public OverviewReportGenerator(RelevanceAnalyzer relevanceAnalyzer) {
+		this.relevanceAnalyzer = relevanceAnalyzer;
+	}
+
 	@Override
 	public void generate(Path outputPath, EmailDataset ds) throws Exception {
 		Path myDir = outputPath.resolve("overview");
@@ -37,9 +42,7 @@ public class OverviewReportGenerator implements ReportGenerator {
 		Map<String, Integer> emailTagCounts = new HashMap<>();
 		Map<String, Integer> threadTagCounts = new HashMap<>();
 		List<Double> relevances = new ArrayList<>();
-		var emailRepo = new EmailRepository(ds);
 		var tagRepo = new TagRepository(ds);
-		RelevanceAnalyzer relevanceAnalyzer = new RelevanceAnalyzer(emailRepo, tagRepo, ReportGen.POSITIVE_TAGS, ReportGen.NEGATIVE_TAGS);
 		AnalysisUtils.doForAllEmails(ds, Filters.taggedEmails(tagRepo), (email, tags) -> {
 			if (email.parentId() == null) {// If the email is the start of a thread.
 				if (!tags.isEmpty()) relevances.add(relevanceAnalyzer.analyzeThread(email.id()));

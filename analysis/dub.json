@@ -1,0 +1,12 @@
+{
+	"authors": [
+		"Andrew Lalis"
+	],
+	"copyright": "Copyright © 2022, Andrew Lalis",
+	"dependencies": {
+		"dsh": "~>1.6.1"
+	},
+	"description": "Email dataset analysis",
+	"license": "MIT",
+	"name": "analysis"
+}

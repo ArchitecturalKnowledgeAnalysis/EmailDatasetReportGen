@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/analysis
+analysis.so
+analysis.dylib
+analysis.dll
+analysis.a
+analysis.lib
+analysis-test-*
+*.exe
+*.o
+*.obj
+*.lst
+
+/result*.json

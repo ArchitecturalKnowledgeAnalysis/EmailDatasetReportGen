@@ -4,10 +4,13 @@ import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.model.ZipParameters;
 import net.lingala.zip4j.model.enums.CompressionLevel;
 import nl.andrewl.email_indexer.data.EmailDataset;
-import nl.andrewl.emaildatasetreportgen.cmd.CharacteristicReportGenerator;
-import nl.andrewl.emaildatasetreportgen.cmd.OverviewReportGenerator;
-import nl.andrewl.emaildatasetreportgen.cmd.PatternReportGenerator;
-import nl.andrewl.emaildatasetreportgen.cmd.PrecisionReportGenerator;
+import nl.andrewl.email_indexer.data.EmailRepository;
+import nl.andrewl.email_indexer.data.TagRepository;
+import nl.andrewl.emaildatasetreportgen.cmd.*;
+import nl.andrewl.emaildatasetreportgen.relevance.RelevanceAnalyzer;
+import org.jfree.chart.ChartColor;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.resources.JFreeChartResources;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,9 +36,16 @@ public class ReportGen {
 		Path outputDir = Path.of(".", reportDirName);
 		Files.createDirectory(outputDir);
 
+		// Pre-compute max-ak-count which is needed for relevance calculations in multiple reports.
+		System.out.println("Pre-computing maximum AK tag count for threads, for relevance calculations.");
+		double maxAkCount = RelevanceAnalyzer.getMaxAkCount(ds, POSITIVE_TAGS);
+		System.out.println("Maximum AK tag count: " + maxAkCount);
+		RelevanceAnalyzer relevanceAnalyzer = new RelevanceAnalyzer(new EmailRepository(ds), new TagRepository(ds), POSITIVE_TAGS, maxAkCount);
+
 		// Run all reports.
-		new OverviewReportGenerator().generate(outputDir, ds);
-		new PrecisionReportGenerator().generate(outputDir, ds);
+		new JsonDataGenerator().generate(outputDir, ds);
+		new OverviewReportGenerator(relevanceAnalyzer).generate(outputDir, ds);
+		new PrecisionReportGenerator(relevanceAnalyzer).generate(outputDir, ds);
 		new CharacteristicReportGenerator().generate(outputDir, ds);
 		new PatternReportGenerator().generate(outputDir, ds);
 
@@ -52,7 +62,13 @@ public class ReportGen {
 		ZipParameters params = new ZipParameters();
 		params.setCompressionLevel(CompressionLevel.ULTRA);
 		try (var s = Files.list(outputDir)) {
-			for (var p : s.toList()) zip.addFolder(p.toFile(), params);
+			for (var p : s.toList()) {
+				if (Files.isDirectory(p)) {
+					zip.addFolder(p.toFile(), params);
+				} else if (Files.isRegularFile(p)) {
+					zip.addFile(p.toFile(), params);
+				}
+			}
 		}
 		zip.close();
 		System.out.println("Done.");

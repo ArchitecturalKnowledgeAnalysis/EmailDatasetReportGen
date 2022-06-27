@@ -18,7 +18,7 @@
         <dependency>
             <groupId>com.github.ArchitecturalKnowledgeAnalysis</groupId>
             <artifactId>EmailIndexer</artifactId>
-            <version>v2.7.1</version>
+            <version>v2.7.3</version>
         </dependency>
         <dependency>
             <groupId>org.thymeleaf</groupId>
@@ -47,6 +47,11 @@
             <groupId>net.lingala.zip4j</groupId>
             <artifactId>zip4j</artifactId>
             <version>2.10.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.9.0</version>
         </dependency>
     </dependencies>
 
