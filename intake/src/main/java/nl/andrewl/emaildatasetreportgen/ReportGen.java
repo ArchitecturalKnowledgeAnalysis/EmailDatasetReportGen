@@ -37,23 +37,23 @@ public class ReportGen {
 		Files.createDirectory(outputDir);
 
 		// Pre-compute max-ak-count which is needed for relevance calculations in multiple reports.
-		System.out.println("Pre-computing maximum AK tag count for threads, for relevance calculations.");
-		double maxAkCount = RelevanceAnalyzer.getMaxAkCount(ds, POSITIVE_TAGS);
-		System.out.println("Maximum AK tag count: " + maxAkCount);
-		RelevanceAnalyzer relevanceAnalyzer = new RelevanceAnalyzer(new EmailRepository(ds), new TagRepository(ds), POSITIVE_TAGS, maxAkCount);
+//		System.out.println("Pre-computing maximum AK tag count for threads, for relevance calculations.");
+//		double maxAkCount = RelevanceAnalyzer.getMaxAkCount(ds, POSITIVE_TAGS);
+//		System.out.println("Maximum AK tag count: " + maxAkCount);
+//		RelevanceAnalyzer relevanceAnalyzer = new RelevanceAnalyzer(new EmailRepository(ds), new TagRepository(ds), POSITIVE_TAGS, maxAkCount);
 
 		// Run all reports.
 		new JsonDataGenerator().generate(outputDir, ds);
-		new OverviewReportGenerator(relevanceAnalyzer).generate(outputDir, ds);
-		new PrecisionReportGenerator(relevanceAnalyzer).generate(outputDir, ds);
-		new CharacteristicReportGenerator().generate(outputDir, ds);
-		new PatternReportGenerator().generate(outputDir, ds);
+//		new OverviewReportGenerator(relevanceAnalyzer).generate(outputDir, ds);
+//		new PrecisionReportGenerator(relevanceAnalyzer).generate(outputDir, ds);
+//		new CharacteristicReportGenerator().generate(outputDir, ds);
+//		new PatternReportGenerator().generate(outputDir, ds);
 
 		ds.close().join();
 		System.out.println("All reports completed.");
 
 		// Save the results to a ZIP for convenience.
-		saveToZIP(reportDirName, outputDir);
+//		saveToZIP(reportDirName, outputDir);
 	}
 
 	private static void saveToZIP(String reportDirName, Path outputDir) throws IOException {

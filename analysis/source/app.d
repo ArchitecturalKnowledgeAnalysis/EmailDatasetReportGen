@@ -46,8 +46,11 @@ int main(string[] args) {
 		}
 	}
 
-	std.file.write("result.json", result.toJSON(true));
-	std.file.write("result_min.json", result.toJSON(false));
+	if (args.length > 3 && args[3] == "min") {
+		writeln(result.toJSON(false));
+	} else {
+		writeln(result.toJSON(true));
+	}
 
 	return 0;
 }
