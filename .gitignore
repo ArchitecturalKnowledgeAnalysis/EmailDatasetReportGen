@@ -1,8 +1,0 @@
-/target
-/.idea
-/reportgen.jar
-# Scripts
-/build_and_run
-/clean_reports
-/export_data
-/run_pipeline
