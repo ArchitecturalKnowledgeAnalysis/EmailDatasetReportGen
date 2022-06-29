@@ -2,6 +2,7 @@ package nl.andrewl.jvisualizer;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import nl.andrewl.jvisualizer.render.CharacteristicRenderer;
 import nl.andrewl.jvisualizer.render.CountRenderer;
 import nl.andrewl.jvisualizer.render.SearchPerformanceRenderer;
 import org.jfree.chart.ChartTheme;
@@ -21,6 +22,7 @@ public class JVisualizer {
 
 		new CountRenderer().renderCharts(data.getAsJsonObject("count"));
 		new SearchPerformanceRenderer().renderCharts(data);
+		new CharacteristicRenderer().renderCharts(data.getAsJsonObject("characteristic"));
 	}
 
 	public static ChartTheme getTheme() {
