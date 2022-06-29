@@ -14,6 +14,7 @@ import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.PiePlot;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.chart.renderer.category.StandardBarPainter;
+import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.general.DefaultPieDataset;
 
@@ -37,8 +38,11 @@ public class CountRenderer implements ChartRenderer {
 			threadCountDataset.addValue(item.getValue().getAsInt(), item.getKey(), "test");
 		}
 
+		final RectangleInsets padding = new RectangleInsets(2, 2, 2, 40);
+
 		JFreeChart chart = ChartFactory.createBarChart("Individual Email Tag Counts", "Tag", "Count", emailCountDataset);
 		JVisualizer.getTheme().apply(chart);
+		chart.getLegend().setItemLabelPadding(padding);
 		CategoryPlot plot = chart.getCategoryPlot();
 		plot.getDomainAxis(0).setVisible(false);
 		BarRenderer renderer = (BarRenderer) plot.getRenderer();
@@ -50,6 +54,7 @@ public class CountRenderer implements ChartRenderer {
 
 		JFreeChart chart2 = ChartFactory.createBarChart("Thread Tag Counts", "Tag", "Count", threadCountDataset);
 		JVisualizer.getTheme().apply(chart2);
+		chart2.getLegend().setItemLabelPadding(padding);
 		CategoryPlot plot2 = chart2.getCategoryPlot();
 		plot2.getDomainAxis(0).setVisible(false);
 		BarRenderer renderer2 = (BarRenderer) plot2.getRenderer();

@@ -2,13 +2,22 @@
 /+ dub.sdl:
     dependency "dsh" version="~>1.6.1"
 +/
+
+/**
+ * This script is responsible for running all the steps of analysis for a given
+ * email dataset. It manages building necessary dependencies from the other
+ * project directories in this repository, and calling them in sequence to
+ * first extract data, perform analysis, and visualize the results, and finally
+ * export the data to a specified directory.
+ */
+module run_pipeline;
+
 import dsh;
 import std.algorithm;
 
 const DATASET_DIR = "/home/andrew/Programming/ArchitecturalKnowledgeAnalysis/Thesis/datasets/current";
 // const REPORT_DEST_DIR = "/home/andrew/Programming/ArchitecturalKnowledgeAnalysis/EmailSearchEfficacyThesis/report";
 const REPORT_DEST_DIR = "/home/andrew/Programming/ArchitecturalKnowledgeAnalysis/EmailDatasetReportGen/scripts/report";
-const ANALYSIS_OUTPUT = "analysis_results.json";
 
 void main(string[] args) {
     string[] options = args[1 .. $];
@@ -32,12 +41,20 @@ void main(string[] args) {
         return;
     }
 
+    // Build dependencies, if needed.
     if (canFind(options, "rebuild") || !exists("intake.jar")) {
         chdir("../intake");
         runOrQuit("mvn clean package");
         chdir(currentWorkingDir);
         string jarFile = findFile("../intake/target", ".*-jar-with-dependencies\\.jar", false);
         copy(jarFile, "intake.jar");
+    }
+    if (canFind(options, "rebuild") || !exists("visualizer.jar")) {
+        chdir("../visual/jVisualizer");
+        runOrQuit("mvn clean package");
+        chdir(currentWorkingDir);
+        string jarFile = findFile("../visual/jVisualizer/target", ".*-jar-with-dependencies\\.jar", false);
+        copy(jarFile, "visualizer.jar");
     }
     if (canFind(options, "rebuild") || !exists("analysis")) {
         chdir("../analysis");
@@ -48,18 +65,29 @@ void main(string[] args) {
     }
     if (canFind(options, "rebuild")) return; // If the user indicated rebuilding, don't run analysis.
     
+    // Run the pipeline here!
+
+    // Extract data.
     runOrQuit("java -jar intake.jar " ~ DATASET_DIR);
     string reportDir = getLatestReport();
+    
+    // Analysis.
     print("Running analysis on generated data in %s.", reportDir);
-    auto pb = new ProcessBuilder()
+    new ProcessBuilder()
         .workingDir(reportDir)
-        .outputTo(reportDir ~ "/" ~ ANALYSIS_OUTPUT);
-    pb.run("../analysis emails.json searches.json min");
-    pb.outputTo(reportDir ~ "/analysis_results_pretty.json");
-    pb.run("../analysis emails.json searches.json");
+        .outputTo(reportDir ~ "/analysis_results.json")
+        .run("../analysis emails.json searches.json min");
+    print("Analysis complete.");
 
-    // TODO: Visualize data.
+    // Visualization.
+    print("Generating visualizations.");
+    mkdir(reportDir ~ "/visual");
+    new ProcessBuilder()
+        .workingDir(reportDir ~ "/visual")
+        .run("java -jar ../../visualizer.jar ../analysis_results.json");
+    print("Visualization complete.");
 
+    // Export to the destination.
     copyDir(reportDir, REPORT_DEST_DIR);
 }
 
@@ -85,10 +113,7 @@ void clean() {
             reportFiles ~= entry.name;
         }
     }, false);
-    reportFiles ~= ANALYSIS_OUTPUT;
     reportFiles ~= ".dub";
-    reportFiles ~= "intake.jar";
-    reportFiles ~= "analysis";
     writefln!"Removing files and directories: %s"(reportFiles);
     removeAnyIfExists(reportFiles);
 }
