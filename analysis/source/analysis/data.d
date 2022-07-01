@@ -134,6 +134,9 @@ double emailRelevance(Email email, string[] akTags) {
 double threadRelevance(Email rootEmail, EmailSet set, string[] akTags, double maxRelevance) {
     import std.algorithm : min;
     uint tagCount = countTagsRecursive(rootEmail, set, akTags);
+    // Alternative method: tag density.
+    // uint size = threadSize(rootEmail, set);
+    // return cast(double) tagCount / cast(double) size;
     return min(1.0, tagCount / maxRelevance);
 }
 
