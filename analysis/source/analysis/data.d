@@ -218,6 +218,19 @@ double getMaxRelevance(EmailSet set, string[] akTags) {
 }
 
 /** 
+ * Computes the density of an email thread. This is the ratio of architectural
+ * emails to the number of total emails in the thread.
+ * Params:
+ *   rootEmail = The root email.
+ *   set = The email set.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: The density of the email thread.
+ */
+double threadDensity(Email rootEmail, EmailSet set, string[] akTags) {
+    return cast(double) countTagsRecursive(rootEmail, set, akTags) / threadSize(rootEmail, set);
+}
+
+/** 
  * Counts the total number of architectural tags applied to all emails in a
  * thread.
  * Params:
