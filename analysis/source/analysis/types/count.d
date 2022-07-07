@@ -1,7 +1,6 @@
 module analysis.types.count;
 
 import std.json;
-import analysis.base;
 import analysis.data;
 
 class CountAnalysis : Analysis {

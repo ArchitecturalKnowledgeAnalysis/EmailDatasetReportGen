@@ -4,7 +4,6 @@ import std.algorithm;
 import std.array;
 import std.json;
 import std.stdio;
-import analysis.base;
 import analysis.data;
 
 /** 

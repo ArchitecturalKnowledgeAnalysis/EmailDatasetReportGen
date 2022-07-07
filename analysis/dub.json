@@ -4,6 +4,7 @@
 	],
 	"copyright": "Copyright © 2022, Andrew Lalis",
 	"dependencies": {
+		"argsd": "~>1.1.0",
 		"dsh": "~>1.6.1"
 	},
 	"description": "Email dataset analysis",

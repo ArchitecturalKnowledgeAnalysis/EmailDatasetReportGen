@@ -1,6 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
+		"argsd": "1.1.0",
 		"dsh": "1.6.1"
 	}
 }

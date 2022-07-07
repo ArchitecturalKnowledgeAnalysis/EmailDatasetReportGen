@@ -2,7 +2,6 @@ module analysis.types.relevance;
 
 import std.json;
 import analysis.data;
-import analysis.base;
 
 class RelevanceAnalysis : Analysis {
     private double[] emailRelevances;

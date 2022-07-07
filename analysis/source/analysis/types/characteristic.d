@@ -3,7 +3,6 @@ module analysis.types.characteristic;
 import std.regex;
 import std.json;
 import analysis.data;
-import analysis.base;
 
 /** 
  * Data that keeps a series of values for a few categories: "any tag", "not ak"

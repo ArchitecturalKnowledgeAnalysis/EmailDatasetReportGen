@@ -1,7 +1,6 @@
 module analysis.types.co_occurrence;
 
 import std.json;
-import analysis.base;
 import analysis.data;
 
 const string KEY_DELIM = "__";

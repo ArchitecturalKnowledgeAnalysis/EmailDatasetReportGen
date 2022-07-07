@@ -2,25 +2,36 @@ import std.stdio;
 import std.file;
 import std.json;
 import std.datetime;
+import std.typecons;
+import args;
 import analysis.data;
-import analysis.base;
 import analysis.types;
 
 int main(string[] args) {
-	if (args.length < 3) {
-		writeln("Missing required arguments. This program requires a path to an \"emails.json\", and \"searches.json\" file.");
-		return 1;
-	}
-	string emailsJson = args[1];
-	string searchesJson = args[2];
+	auto nOpt = getOptions(args);
+	if (nOpt.isNull) return 0;
+	AnalysisOptions options = nOpt.get();
 
 	SysTime now = Clock.currTime(UTC());
 	JSONValue result;
 	result["timestamp"] = now.toISOExtString;
 
-	EmailSet set = parseEmailsJson(emailsJson);
 	string[] akTags = ["existence", "existence-behavioral", "existence-structural", "property", "process", "technology"];
 
+	EmailSet set = doEmailAnalyses(options.emailsJsonFilename, akTags, result);
+	doSearchAnalyses(options.searchesJsonFilename, akTags, result, set);
+
+	if (options.minifyJson) {
+		writeln(result.toJSON(false));
+	} else {
+		writeln(result.toJSON(true));
+	}
+
+	return 0;
+}
+
+EmailSet doEmailAnalyses(string emailsJsonFilename, string[] akTags, ref JSONValue result) {
+	EmailSet set = parseEmailsJson(emailsJsonFilename);
 	Analysis[] analyses;
 	analyses ~= new CharacteristicAnalysis();
 	analyses ~= new CountAnalysis();
@@ -36,8 +47,11 @@ int main(string[] args) {
 		foreach (analysis; analyses) analysis.accept(email, set, akTags);
 	}
 	foreach (analysis; analyses) analysis.addToJson(result);
+	return set;
+}
 
-	SearchQueryData[] searches = parseSearchesJson(searchesJson);
+void doSearchAnalyses(string searchesJsonFilename, string[] akTags, ref JSONValue result, EmailSet set) {
+	SearchQueryData[] searches = parseSearchesJson(searchesJsonFilename);
 	SearchQueryAnalysis[] searchAnalyses;
 	searchAnalyses ~= new SearchPrecisionAnalysis();
 	foreach (searchData; searches) {
@@ -45,12 +59,37 @@ int main(string[] args) {
 			analysis.accept(set, searchData, akTags, result);
 		}
 	}
+}
 
-	if (args.length > 3 && args[3] == "min") {
-		writeln(result.toJSON(false));
-	} else {
-		writeln(result.toJSON(true));
+// TODO: Make my own options parser.
+
+struct AnalysisOptions {
+	@Arg("The JSON file containing emails.", 'e', Optional.no)
+	string emailsJsonFilename;
+	@Arg("The JSON file containing search data.", 's', Optional.no)
+	string searchesJsonFilename;
+	@Arg("Whether to output minified JSON.", Optional.yes)
+	bool minifyJson;
+}
+
+/** 
+ * Gets options from the command-line, if possible.
+ * Params:
+ *   args = The command-line arguments.
+ * Returns: The options, which might be null.
+ */
+Nullable!AnalysisOptions getOptions(string[] args) {
+	AnalysisOptions options;
+	Nullable!AnalysisOptions nOpt;
+	try {
+		bool helpWanted = parseArgsWithConfigFile(options, args);
+		if (helpWanted) {
+			printArgsHelp(options, "Performs analysis over exported email dataset data.");
+		} else {
+			nOpt = options;
+		}
+	} catch (Exception e) {
+		printArgsHelp(options, cast(string) e.message);
 	}
-
-	return 0;
+	return nOpt;
 }

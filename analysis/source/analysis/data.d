@@ -1,5 +1,10 @@
+/** 
+ * Central module of the analysis application which contains the models and
+ * basic helper functions for working with the data.
+ */
 module analysis.data;
 
+import std.json;
 import std.datetime : SysTime;
 
 /** 
@@ -34,6 +39,12 @@ class EmailSet {
     Email[][string] emailsByTag;
 }
 
+/** 
+ * Parses a set of emails from a JSON file.
+ * Params:
+ *   jsonFile = The file to parse.
+ * Returns: The email set.
+ */
 EmailSet parseEmailsJson(string jsonFile) {
     import std.json;
     import std.file;
@@ -81,6 +92,10 @@ EmailSet parseEmailsJson(string jsonFile) {
     return set;
 }
 
+/** 
+ * The exported data that's generated from running a particular search query
+ * on a dataset.
+ */
 struct SearchQueryData {
     string queryName;
     string query;
@@ -88,6 +103,12 @@ struct SearchQueryData {
     long[] emailIds;
 }
 
+/** 
+ * Parses a set of search query data items from a JSON file.
+ * Params:
+ *   jsonFile = The file to parse.
+ * Returns: The search query data set.
+ */
 SearchQueryData[] parseSearchesJson(string jsonFile) {
     import std.json;
     import std.file;
@@ -115,6 +136,31 @@ SearchQueryData[] parseSearchesJson(string jsonFile) {
     return searches;
 }
 
+/** 
+ * Represents an analysis operation that consumes emails to add to its data,
+ * and produces at the end some data which can be added to a JSON object.
+ */
+interface Analysis {
+    void initialize(EmailSet set, string[] akTags);
+    void accept(Email email, EmailSet set, string[] akTags);
+    void addToJson(ref JSONValue obj);
+}
+
+/** 
+ * Represents an analysis operation to be performed on dataset search results.
+ */
+interface SearchQueryAnalysis {
+    void accept(EmailSet set, SearchQueryData data, string[] akTags, ref JSONValue obj);
+}
+
+/** 
+ * Determines if an email is considered to be architectural, based on the tags
+ * it has, and the tags that we define as architectural.
+ * Params:
+ *   email = The email to check.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: True if the email is architectural, or false otherwise.
+ */
 bool hasAk(Email email, string[] akTags) {
     import std.algorithm : canFind;
     foreach (tag; email.tags) {
@@ -123,10 +169,31 @@ bool hasAk(Email email, string[] akTags) {
     return false;
 }
 
+/** 
+ * Determines if an email thread has architectural knowledge, based on the tags
+ * of all emails in it, and the tags that we define as architectural.
+ * Params:
+ *   email = The root email of the thread.
+ *   set = The email set.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: True if the thread contains at least one architectural email.
+ */
 bool threadHasAk(Email email, EmailSet set, string[] akTags) {
-    return countTagsRecursive(email, set, akTags) > 0;
+    if (hasAk(email, akTags)) return true;
+    foreach (reply; set.repliesById[email.id]) {
+        if (threadHasAk(reply, set, akTags)) return true;
+    }
+    return false;
 }
 
+/** 
+ * Computes the relevance of an email. This is simply 1 if the email has any
+ * architectural knowledge, or 0 otherwise.
+ * Params:
+ *   email = The email to compute the relevance of.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: The relevance of the email.
+ */
 double emailRelevance(Email email, string[] akTags) {
     return hasAk(email, akTags) ? 1.0 : 0.0;
 }
@@ -150,6 +217,15 @@ double getMaxRelevance(EmailSet set, string[] akTags) {
     return rootEmailTagCounts[0 .. 10].mean;
 }
 
+/** 
+ * Counts the total number of architectural tags applied to all emails in a
+ * thread.
+ * Params:
+ *   email = The root email to search in.
+ *   set = The set of emails.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: The total number of architectural tags.
+ */
 uint countTagsRecursive(Email email, EmailSet set, string[] akTags) {
     import std.algorithm;
     uint count = cast(uint) email.tags.count!(t => akTags.canFind(t));
@@ -159,6 +235,13 @@ uint countTagsRecursive(Email email, EmailSet set, string[] akTags) {
     return count;
 }
 
+/** 
+ * Computes the number of emails in a thread, including the root.
+ * Params:
+ *   email = The root email.
+ *   set = The email set.
+ * Returns: The size of the thread.
+ */
 uint threadSize(Email email, EmailSet set) {
     uint count = 1;
     foreach (Email reply; set.repliesById[email.id]) {
@@ -167,6 +250,14 @@ uint threadSize(Email email, EmailSet set) {
     return count;
 }
 
+/** 
+ * Gets the list of all participants in an email thread. This contains all
+ * email addresses who have sent an email in the thread.
+ * Params:
+ *   email = The root email.
+ *   set = The email set.
+ * Returns: The list of participants.
+ */
 string[] threadParticipants(Email email, EmailSet set) {
     import std.algorithm : canFind;
     string[] participants = [email.sentFrom];
@@ -178,6 +269,13 @@ string[] threadParticipants(Email email, EmailSet set) {
     return participants;
 }
 
+/** 
+ * Gets the list of all tags that exist in an email thread.
+ * Params:
+ *   email = The root email.
+ *   set = The email set.
+ * Returns: The list of all architectural tags that occur in the thread.
+ */
 string[] threadTags(Email email, EmailSet set) {
     import std.algorithm : canFind;
     string[] tags = email.tags.dup;
@@ -189,6 +287,24 @@ string[] threadTags(Email email, EmailSet set) {
     return tags;
 }
 
+/** 
+ * Generates a list of all permutations of a set of tags. For example, given
+ * the tags `["a", "b", "c"]`, the following permutations would be generated:
+ * ```d
+ * auto permutations = [
+ *   ["a", "b", "c"],
+ *   ["a", "c", "b"],
+ *   ["b", "a", "c"],
+ *   ["b", "c", "a"],
+ *   ["c", "a", "b"],
+ *   ["c", "b", "a"]
+ * ];
+ * ```
+ * Params:
+ *   size = The desired size of each permutation.
+ *   tags = The list of tags to use.
+ * Returns: The list of permutations.
+ */
 string[][] generateTagPermutations(uint size, string[] tags) {
     import std.algorithm : canFind;
     import std.array : appender;
