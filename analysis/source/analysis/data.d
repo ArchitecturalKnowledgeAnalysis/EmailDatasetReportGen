@@ -198,23 +198,39 @@ double emailRelevance(Email email, string[] akTags) {
     return hasAk(email, akTags) ? 1.0 : 0.0;
 }
 
+/** 
+ * Computes the relevance of an email thread as a linear combination of the
+ * density and relative tag count metrics for the thread.
+ * Params:
+ *   rootEmail = The root email of the thread.
+ *   set = The email set.
+ *   akTags = The list of tags which are considered architectural.
+ *   maxRelevance = The pre-computed "max" relevance for the set.
+ * Returns: The relevance of the thread.
+ */
 double threadRelevance(Email rootEmail, EmailSet set, string[] akTags, double maxRelevance) {
     import std.algorithm : min;
     uint tagCount = countTagsRecursive(rootEmail, set, akTags);
-    // Alternative method: tag density.
-    // uint size = threadSize(rootEmail, set);
-    // return cast(double) tagCount / cast(double) size;
-    return min(1.0, tagCount / maxRelevance);
+    return (threadDensity(rootEmail, set, akTags) + min(1.0, tagCount / maxRelevance)) / 2.0;
 }
 
+/** 
+ * Computes the value that we consider to be the "max relevance" of all email
+ * threads in a dataset. This is the third-quartile value of the count of all
+ * tags in all email threads.
+ * Params:
+ *   set = The email set.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: The max relevance.
+ */
 double getMaxRelevance(EmailSet set, string[] akTags) {
     import std.algorithm : sort, mean;
     uint[] rootEmailTagCounts = new uint[set.rootEmails.length];
     foreach (i, rootEmail; set.rootEmails) {
         rootEmailTagCounts[i] = countTagsRecursive(rootEmail, set, akTags);
     }
-    rootEmailTagCounts.sort!("a > b");
-    return rootEmailTagCounts[0 .. 10].mean;
+    rootEmailTagCounts.sort();
+    return rootEmailTagCounts[rootEmailTagCounts.length * 3 / 4];
 }
 
 /** 
@@ -227,7 +243,7 @@ double getMaxRelevance(EmailSet set, string[] akTags) {
  * Returns: The density of the email thread.
  */
 double threadDensity(Email rootEmail, EmailSet set, string[] akTags) {
-    return cast(double) countTagsRecursive(rootEmail, set, akTags) / threadSize(rootEmail, set);
+    return cast(double) countAkEmails(rootEmail, set, akTags) / threadSize(rootEmail, set);
 }
 
 /** 
@@ -298,6 +314,23 @@ string[] threadTags(Email email, EmailSet set) {
         }
     }
     return tags;
+}
+
+/** 
+ * Counts the number of emails in a thread which contain some architectural
+ * knowledge.
+ * Params:
+ *   rootEmail = The root email of the thread.
+ *   set = The email set.
+ *   akTags = The list of tags which are considered architectural.
+ * Returns: The number of emails which are architectural.
+ */
+uint countAkEmails(Email rootEmail, EmailSet set, string[] akTags) {
+    uint count = hasAk(rootEmail, akTags) ? 1 : 0;
+    foreach (reply; set.repliesById[rootEmail.id]) {
+        count += countAkEmails(reply, set, akTags);
+    }
+    return count;
 }
 
 /** 
