@@ -77,7 +77,7 @@ public class SearchPerformanceRenderer implements ChartRenderer {
 
 	private void renderChart(String title, XYSeriesCollection collection, String xAxisLabel, String yAxisLabel, String filename) throws IOException {
 		JFreeChart chart = ChartFactory.createXYLineChart(title, xAxisLabel, yAxisLabel, collection);
-		JVisualizer.getTheme().apply(chart);
+		JVisualizer.CHART_THEME.apply(chart);
 		final RectangleInsets padding = new RectangleInsets(2, 2, 2, 40);
 		chart.getLegend().setItemLabelPadding(padding);
 		XYItemRenderer renderer = chart.getXYPlot().getRenderer();

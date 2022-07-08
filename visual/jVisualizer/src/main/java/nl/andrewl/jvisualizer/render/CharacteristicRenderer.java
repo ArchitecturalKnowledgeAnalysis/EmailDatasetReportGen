@@ -22,27 +22,28 @@ import java.util.List;
 public class CharacteristicRenderer implements ChartRenderer {
 	@Override
 	public void renderCharts(JsonObject data) throws Exception {
+		var characteristicData = data.getAsJsonObject("characteristic");
 		generateBoxPlot(
 				"Email Body Size",
-				data.getAsJsonObject("body_size"),
+				characteristicData.getAsJsonObject("body_size"),
 				"Body Size (# of characters)",
 				"body_size.png"
 		);
 		generateBoxPlot(
 				"Email Word Count",
-				data.getAsJsonObject("word_count"),
+				characteristicData.getAsJsonObject("word_count"),
 				"Word Count (# of words)",
 				"word_count.png"
 		);
 		generateBoxPlot(
 				"Thread Size",
-				data.getAsJsonObject("thread_size"),
+				characteristicData.getAsJsonObject("thread_size"),
 				"Thread Size (# of emails)",
 				"thread_size.png"
 		);
 		generateBoxPlot(
 				"Thread Participation",
-				data.getAsJsonObject("thread_participation"),
+				characteristicData.getAsJsonObject("thread_participation"),
 				"Thread Participation (# of participants)",
 				"thread_participation.png"
 		);
@@ -74,7 +75,7 @@ public class CharacteristicRenderer implements ChartRenderer {
 		dataset.add(mapJsonIntArray(data.getAsJsonArray("not_ak")), "Non-architectural", "Any Tag");
 
 		JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(title, "Type", valueAxisLabel, dataset, true);
-		JVisualizer.getTheme().apply(chart);
+		JVisualizer.CHART_THEME.apply(chart);
 		CategoryPlot plot = chart.getCategoryPlot();
 		plot.getDomainAxis().setCategoryLabelPositions(CategoryLabelPositions.UP_45);
 		BoxAndWhiskerRenderer renderer = (BoxAndWhiskerRenderer) plot.getRenderer();

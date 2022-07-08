@@ -27,13 +27,14 @@ public class CountRenderer implements ChartRenderer {
 
 	@Override
 	public void renderCharts(JsonObject data) throws Exception {
+		JsonObject countData = data.getAsJsonObject("count");
 		DefaultCategoryDataset emailCountDataset = new DefaultCategoryDataset();
-		for (var item : data.getAsJsonObject("email_tag_counts").entrySet()) {
+		for (var item : countData.getAsJsonObject("email_tag_counts").entrySet()) {
 			if (!AK_TAGS.contains(item.getKey())) continue;
 			emailCountDataset.addValue(item.getValue().getAsInt(), item.getKey(), "test");
 		}
 		DefaultCategoryDataset threadCountDataset = new DefaultCategoryDataset();
-		for (var item : data.getAsJsonObject("thread_tag_counts").entrySet()) {
+		for (var item : countData.getAsJsonObject("thread_tag_counts").entrySet()) {
 			if (!AK_TAGS.contains(item.getKey())) continue;
 			threadCountDataset.addValue(item.getValue().getAsInt(), item.getKey(), "test");
 		}
@@ -41,7 +42,7 @@ public class CountRenderer implements ChartRenderer {
 		final RectangleInsets padding = new RectangleInsets(2, 2, 2, 40);
 
 		JFreeChart chart = ChartFactory.createBarChart("Individual Email Tag Counts", "Tag", "Count", emailCountDataset);
-		JVisualizer.getTheme().apply(chart);
+		JVisualizer.CHART_THEME.apply(chart);
 		chart.getLegend().setItemLabelPadding(padding);
 		CategoryPlot plot = chart.getCategoryPlot();
 		plot.getDomainAxis(0).setVisible(false);
@@ -53,7 +54,7 @@ public class CountRenderer implements ChartRenderer {
 		ChartUtils.saveChartAsPNG(new File("email_tag_counts.png"), chart, 1000, 700);
 
 		JFreeChart chart2 = ChartFactory.createBarChart("Thread Tag Counts", "Tag", "Count", threadCountDataset);
-		JVisualizer.getTheme().apply(chart2);
+		JVisualizer.CHART_THEME.apply(chart2);
 		chart2.getLegend().setItemLabelPadding(padding);
 		CategoryPlot plot2 = chart2.getCategoryPlot();
 		plot2.getDomainAxis(0).setVisible(false);
@@ -66,7 +67,7 @@ public class CountRenderer implements ChartRenderer {
 
 		List<String> onlyAkTags = List.of("existence", "process", "property", "technology");
 		DefaultPieDataset<String> pieDataset = new DefaultPieDataset<>();
-		for (var item : data.getAsJsonObject("email_tag_counts").entrySet()) {
+		for (var item : countData.getAsJsonObject("email_tag_counts").entrySet()) {
 			if (!onlyAkTags.contains(item.getKey())) continue;
 			pieDataset.setValue(item.getKey(), item.getValue().getAsInt());
 		}
@@ -83,7 +84,7 @@ public class CountRenderer implements ChartRenderer {
 		);
 		piePlot.setLabelGenerator(gen);
 		pieChart.setBorderVisible(false);
-		JVisualizer.getTheme().apply(pieChart);
+		JVisualizer.CHART_THEME.apply(pieChart);
 		ChartUtils.saveChartAsPNG(new File("decision_types_pie.png"), pieChart, 1200, 1200);
 	}
 }
