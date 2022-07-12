@@ -1,0 +1,7 @@
+/*.jar
+/clean_reports
+/analysis_program
+/run_pipeline
+/report_*
+/*.json
+/.dub

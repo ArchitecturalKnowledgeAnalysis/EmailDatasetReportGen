@@ -23,7 +23,7 @@ import java.text.DecimalFormat;
 import java.util.List;
 
 public class CountRenderer implements ChartRenderer {
-	public static final List<String> AK_TAGS = List.of("existence", "existence-behavioral", "existence-structural", "process", "property", "technology", "not-ak");
+	public static final List<String> AK_TAGS = List.of("existence", "process", "property", "technology", "not-ak");
 
 	@Override
 	public void renderCharts(JsonObject data) throws Exception {
