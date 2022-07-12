@@ -76,7 +76,7 @@ void main(string[] args) {
     new ProcessBuilder()
         .workingDir(reportDir)
         .outputTo(reportDir ~ "/analysis_results.json")
-        .run("../analysis_program -e emails.json -s searches.json --minifyJson");
+        .run("../analysis_program -e emails.json -s searches.json");
 
     // Visualization.
     print("Generating visualizations.");

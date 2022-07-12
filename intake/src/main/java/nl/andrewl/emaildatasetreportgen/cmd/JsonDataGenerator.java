@@ -1,6 +1,8 @@
 package nl.andrewl.emaildatasetreportgen.cmd;
 
 import com.google.gson.*;
+import edu.stanford.nlp.pipeline.CoreDocument;
+import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import nl.andrewl.email_indexer.data.EmailDataset;
 import nl.andrewl.email_indexer.data.TagRepository;
 import nl.andrewl.email_indexer.data.search.EmailIndexSearcher;
@@ -13,16 +15,23 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Simple generator that serializes every tagged email as a JSON object and writes an array to a file.
  */
 public class JsonDataGenerator implements ReportGenerator {
+	public static final int MIN_LEMMA_COUNT = 10;
+
 	@Override
 	public void generate(Path outputPath, EmailDataset ds) throws Exception {
 		System.out.println("Generating JSON export.");
 		exportAllEmails(ds, outputPath);
 		exportSearches(ds, outputPath);
+		exportNLP(ds, outputPath);
 		System.out.println("JSON export complete.");
 	}
 
@@ -68,6 +77,89 @@ public class JsonDataGenerator implements ReportGenerator {
 		System.out.println("Writing emails to file.");
 		Path emailsFile = outputPath.resolve("emails.json");
 		writeJson(emailsArray, emailsFile);
+	}
+
+	private void exportNLP(EmailDataset ds, Path outputPath) throws IOException, InterruptedException {
+		System.out.println("Exporting NLP lemmatization data.");
+		Properties props = new Properties();
+		props.setProperty("annotators", "tokenize,ssplit,pos,lemma");
+		props.setProperty("coref.algorithm", "neural");
+
+		StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+		Map<Long, CoreDocument> emailData = new HashMap<>();
+		Map<String, Set<Long>> taggedEmails = new HashMap<>();
+
+		// Run the document annotation in parallel, since the pipeline is threadsafe, and it's really slow.
+		ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		AnalysisUtils.doForAllEmails(ds, Filters.taggedEmails(new TagRepository(ds)), (email, tags) -> {
+			executor.submit(() -> {
+				CoreDocument doc = new CoreDocument(email.body());
+				pipeline.annotate(doc);
+				emailData.put(email.id(), doc);
+				for (var tag : tags) {
+					Set<Long> emailIds = taggedEmails.computeIfAbsent(tag.name(), s -> new HashSet<>());
+					emailIds.add(email.id());
+				}
+			});
+		});
+		executor.shutdown();
+		boolean finished;
+		do {
+			finished = executor.awaitTermination(1, TimeUnit.MINUTES);
+		} while (!finished);
+
+		JsonObject lemmaJson = new JsonObject();
+		JsonObject allTags = getLemmaData(Set.of("existence", "technology", "process", "property"), emailData, taggedEmails);
+		JsonObject existence = getLemmaData(Set.of("existence"), emailData, taggedEmails);
+		JsonObject technology = getLemmaData(Set.of("technology"), emailData, taggedEmails);
+		JsonObject process = getLemmaData(Set.of("process"), emailData, taggedEmails);
+		JsonObject property = getLemmaData(Set.of("property"), emailData, taggedEmails);
+		JsonObject notAk = getLemmaData(Set.of("not-ak"), emailData, taggedEmails);
+		lemmaJson.add("all_tags", allTags);
+		lemmaJson.add("existence", existence);
+		lemmaJson.add("technology", technology);
+		lemmaJson.add("process", process);
+		lemmaJson.add("property", property);
+		lemmaJson.add("not_ak", notAk);
+		writeJson(lemmaJson, outputPath.resolve("lemmas.json"));
+	}
+
+	private static JsonObject getLemmaData(Set<String> tags, Map<Long, CoreDocument> documents, Map<String, Set<Long>> taggedEmailIds) {
+		JsonObject obj = new JsonObject();
+		JsonArray tagsArray = new JsonArray(tags.size());
+		tags.stream().sorted().forEachOrdered(tagsArray::add);
+		obj.add("tags", tagsArray);
+		// Find all applicable emails that have at least one of the specified tags.
+		Set<Long> applicableEmailIds = new HashSet<>();
+		for (var entry : taggedEmailIds.entrySet()) {
+			if (tags.contains(entry.getKey())) applicableEmailIds.addAll(entry.getValue());
+		}
+		// Find all applicable documents for emails that have the right tags.
+		List<CoreDocument> applicableDocuments = new ArrayList<>();
+		for (var emailId : applicableEmailIds) {
+			CoreDocument doc = documents.get(emailId);
+			if (doc != null) applicableDocuments.add(doc);
+		}
+		// Count up all the lemmas in all applicable documents.
+		Map<String, Integer> lemmaCounts = new HashMap<>();
+		for (var doc : applicableDocuments) {
+			for (var token : doc.tokens()) {
+				int count = lemmaCounts.computeIfAbsent(token.lemma(), s -> 0);
+				lemmaCounts.put(token.lemma(), count + 1);
+			}
+		}
+
+		// Serialize the data into a JSON object with key-value pairs being the lemmas and their frequencies.
+		JsonObject lemmasObj = new JsonObject();
+		List<Map.Entry<String, Integer>> values = lemmaCounts.entrySet().stream()
+				.filter(entry -> entry.getValue() >= MIN_LEMMA_COUNT) // Filter out all the garbage lemmas that don't occur much.
+				.sorted(Collections.reverseOrder(Comparator.comparingInt(Map.Entry::getValue)))
+				.toList();
+		for (var value : values) {
+			lemmasObj.addProperty(value.getKey(), value.getValue());
+		}
+		obj.add("lemmas", lemmasObj);
+		return obj;
 	}
 
 	private static void writeJson(JsonElement j, Path file) throws IOException {

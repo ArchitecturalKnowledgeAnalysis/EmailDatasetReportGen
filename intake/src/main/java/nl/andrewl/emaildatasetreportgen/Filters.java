@@ -16,4 +16,11 @@ public final class Filters {
 				new TagFilter(tagRepo.findAll().stream().map(Tag::id).toList(), TagFilter.Type.INCLUDE_ANY)
 		);
 	}
+
+	public static Collection<SearchFilter> taggedEmails(TagRepository tagRepo, Set<String> tags) {
+		return Set.of(
+				new HiddenFilter(false),
+				new TagFilter(tagRepo.findAll().stream().filter(t -> tags.contains(t.name())).map(Tag::id).toList(), TagFilter.Type.INCLUDE_ANY)
+		);
+	}
 }
