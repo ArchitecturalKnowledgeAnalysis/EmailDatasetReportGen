@@ -51,17 +51,32 @@ class NGramAnalysis : Analysis {
         return join(p, KEY_DELIM);
     }
 
+    /** 
+     * Finds a list of sequences of email ids, where the emails in those
+     * sequences have tags matching the given pattern of tags, in exactly the
+     * same order.
+     * Params:
+     *   email = The root email to search in.
+     *   set = The email set.
+     *   pattern = The tag pattern to search for.
+     * Returns: A list of email id sequences, where each sequence contains a
+     * list of email ids corresponding to emails that have tags matching the
+     * given pattern.
+     */
     private long[][] findMatchingSequences(Email email, EmailSet set, string[] pattern) {
         import std.algorithm;
         import std.array;
-        if (pattern.length == 0) return [];
+        if (pattern.length == 0) return []; // Failsafe exit if the patterns are empty.
         bool thisEmailMatches = email.tags.canFind(pattern[0]);
         long[][] sequences = [];
+        // An appender for appending sequences to the list.
         auto sequenceAppender = appender(&sequences);
         if (thisEmailMatches) {
+            // Our base case: the root email has a matching tag.
             if (pattern.length == 1) {
                 sequenceAppender ~= [email.id];
             } else {
+                // Recursive step: find sequences in replies that match the rest of the pattern.
                 foreach (reply; set.repliesById[email.id]) {
                     foreach (sequence; findMatchingSequences(reply, set, pattern[1 .. $])) {
                         sequence.insertInPlace(0, email.id);
@@ -70,6 +85,7 @@ class NGramAnalysis : Analysis {
                 }
             }
         } else if (skip) {
+            // If we allow skipping non-architectural emails, check all replies anyways.
             foreach (reply; set.repliesById[email.id]) {
                 sequenceAppender ~= findMatchingSequences(reply, set, pattern);
             }
