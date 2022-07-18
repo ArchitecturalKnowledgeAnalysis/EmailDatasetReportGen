@@ -4,6 +4,8 @@ import com.google.gson.*;
 import edu.stanford.nlp.pipeline.CoreDocument;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import nl.andrewl.email_indexer.data.EmailDataset;
+import nl.andrewl.email_indexer.data.EmailRepository;
+import nl.andrewl.email_indexer.data.MutationEntry;
 import nl.andrewl.email_indexer.data.TagRepository;
 import nl.andrewl.email_indexer.data.search.EmailIndexSearcher;
 import nl.andrewl.emaildatasetreportgen.AnalysisUtils;
@@ -11,7 +13,9 @@ import nl.andrewl.emaildatasetreportgen.Filters;
 import nl.andrewl.emaildatasetreportgen.ReportGen;
 import nl.andrewl.emaildatasetreportgen.ReportGenerator;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
@@ -31,6 +35,7 @@ public class JsonDataGenerator implements ReportGenerator {
 		System.out.println("Generating JSON export.");
 		exportAllEmails(ds, outputPath);
 		exportSearches(ds, outputPath);
+		exportMutations(ds, outputPath);
 		exportNLP(ds, outputPath);
 		System.out.println("JSON export complete.");
 	}
@@ -79,6 +84,20 @@ public class JsonDataGenerator implements ReportGenerator {
 		writeJson(emailsArray, emailsFile);
 	}
 
+	private void exportMutations(EmailDataset ds, Path outputPath) throws IOException {
+		System.out.println("Exporting mutations.");
+		JsonArray mutationsArray = new JsonArray();
+		for (MutationEntry mutation : new EmailRepository(ds).getAllMutations()) {
+			JsonObject obj = new JsonObject();
+			obj.addProperty("id", mutation.id());
+			obj.addProperty("affected_email_count", mutation.affectedEmailCount());
+			obj.addProperty("description", mutation.description());
+			mutationsArray.add(obj);
+		}
+		Path mutationsFile = outputPath.resolve("mutations.json");
+		writeJson(mutationsArray, mutationsFile);
+	}
+
 	private void exportNLP(EmailDataset ds, Path outputPath) throws IOException, InterruptedException {
 		System.out.println("Exporting NLP lemmatization data.");
 		Properties props = new Properties();
@@ -124,7 +143,7 @@ public class JsonDataGenerator implements ReportGenerator {
 		writeJson(lemmaJson, outputPath.resolve("lemmas.json"));
 	}
 
-	private static JsonObject getLemmaData(Set<String> tags, Map<Long, CoreDocument> documents, Map<String, Set<Long>> taggedEmailIds) {
+	private static JsonObject getLemmaData(Set<String> tags, Map<Long, CoreDocument> documents, Map<String, Set<Long>> taggedEmailIds) throws IOException {
 		JsonObject obj = new JsonObject();
 		JsonArray tagsArray = new JsonArray(tags.size());
 		tags.stream().sorted().forEachOrdered(tagsArray::add);
@@ -144,8 +163,10 @@ public class JsonDataGenerator implements ReportGenerator {
 		Map<String, Integer> lemmaCounts = new HashMap<>();
 		for (var doc : applicableDocuments) {
 			for (var token : doc.tokens()) {
-				int count = lemmaCounts.computeIfAbsent(token.lemma(), s -> 0);
-				lemmaCounts.put(token.lemma(), count + 1);
+				if (!getStopWords().contains(token.lemma().toLowerCase())) {
+					int count = lemmaCounts.computeIfAbsent(token.lemma(), s -> 0);
+					lemmaCounts.put(token.lemma(), count + 1);
+				}
 			}
 		}
 
@@ -160,6 +181,22 @@ public class JsonDataGenerator implements ReportGenerator {
 		}
 		obj.add("lemmas", lemmasObj);
 		return obj;
+	}
+
+	private static Set<String> stopWords = null;
+	private static Set<String> getStopWords() throws IOException {
+		if (stopWords == null) {
+			try (var in = JsonDataGenerator.class.getClassLoader().getResourceAsStream("stopwords-en.txt")) {
+				if (in == null) throw new IOException("Couldn't load stopwords file from resources.");
+				var reader = new BufferedReader(new InputStreamReader(in));
+				String line;
+				stopWords = new HashSet<>();
+				while ((line = reader.readLine()) != null) {
+					stopWords.add(line.strip());
+				}
+			}
+		}
+		return stopWords;
 	}
 
 	private static void writeJson(JsonElement j, Path file) throws IOException {
