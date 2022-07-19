@@ -27,11 +27,17 @@ public class CountRenderer implements ChartRenderer {
 
 	@Override
 	public void renderCharts(JsonObject data) throws Exception {
+		List<String> onlyAkTags = List.of("existence", "process", "property", "technology");
 		JsonObject countData = data.getAsJsonObject("count");
 		DefaultCategoryDataset emailCountDataset = new DefaultCategoryDataset();
+		DefaultCategoryDataset emailCountDatasetNoAk = new DefaultCategoryDataset();
 		for (var item : countData.getAsJsonObject("email_tag_counts").entrySet()) {
-			if (!AK_TAGS.contains(item.getKey())) continue;
-			emailCountDataset.addValue(item.getValue().getAsInt(), item.getKey(), "test");
+			if (AK_TAGS.contains(item.getKey())) {
+				emailCountDataset.addValue(item.getValue().getAsInt(), item.getKey(), "test");
+			}
+			if (onlyAkTags.contains(item.getKey())) {
+				emailCountDatasetNoAk.addValue(item.getValue().getAsInt(), item.getKey(), "test");
+			}
 		}
 		DefaultCategoryDataset threadCountDataset = new DefaultCategoryDataset();
 		for (var item : countData.getAsJsonObject("thread_tag_counts").entrySet()) {
@@ -42,30 +48,18 @@ public class CountRenderer implements ChartRenderer {
 		final RectangleInsets padding = new RectangleInsets(2, 2, 2, 40);
 
 		JFreeChart chart = ChartFactory.createBarChart("Individual Email Tag Counts", "Tag", "Count", emailCountDataset);
-		JVisualizer.CHART_THEME.apply(chart);
-		chart.getLegend().setItemLabelPadding(padding);
-		CategoryPlot plot = chart.getCategoryPlot();
-		plot.getDomainAxis(0).setVisible(false);
-		BarRenderer renderer = (BarRenderer) plot.getRenderer();
-		renderer.setBarPainter(new StandardBarPainter());
-		renderer.setDrawBarOutline(true);
-		CategoryAxis domainAxis = plot.getDomainAxis();
-		domainAxis.setCategoryLabelPositions(CategoryLabelPositions.UP_45);
+		generateTagCountChart(padding, chart);
 		ChartUtils.saveChartAsPNG(new File("email_tag_counts.png"), chart, 1000, 700);
 
+		JFreeChart chartNoAk = ChartFactory.createBarChart("Individual Email Tag Counts, Excl. not-ak", "Tag", "Count", emailCountDatasetNoAk);
+		generateTagCountChart(padding, chartNoAk);
+		ChartUtils.saveChartAsPNG(new File("email_tag_counts_excl_not-ak.png"), chartNoAk, 1000, 700);
+
 		JFreeChart chart2 = ChartFactory.createBarChart("Thread Tag Counts", "Tag", "Count", threadCountDataset);
-		JVisualizer.CHART_THEME.apply(chart2);
-		chart2.getLegend().setItemLabelPadding(padding);
-		CategoryPlot plot2 = chart2.getCategoryPlot();
-		plot2.getDomainAxis(0).setVisible(false);
-		BarRenderer renderer2 = (BarRenderer) plot2.getRenderer();
-		renderer2.setBarPainter(new StandardBarPainter());
-		renderer2.setDrawBarOutline(true);
-		CategoryAxis domainAxis2 = plot2.getDomainAxis();
-		domainAxis2.setCategoryLabelPositions(CategoryLabelPositions.UP_45);
+		generateTagCountChart(padding, chart2);
 		ChartUtils.saveChartAsPNG(new File("thread_tag_counts.png"), chart2, 1000, 700);
 
-		List<String> onlyAkTags = List.of("existence", "process", "property", "technology");
+
 		DefaultPieDataset<String> pieDataset = new DefaultPieDataset<>();
 		for (var item : countData.getAsJsonObject("email_tag_counts").entrySet()) {
 			if (!onlyAkTags.contains(item.getKey())) continue;
@@ -86,5 +80,17 @@ public class CountRenderer implements ChartRenderer {
 		pieChart.setBorderVisible(false);
 		JVisualizer.CHART_THEME.apply(pieChart);
 		ChartUtils.saveChartAsPNG(new File("decision_types_pie.png"), pieChart, 1200, 1200);
+	}
+
+	private void generateTagCountChart(RectangleInsets padding, JFreeChart chart) {
+		JVisualizer.CHART_THEME.apply(chart);
+		chart.getLegend().setItemLabelPadding(padding);
+		CategoryPlot plot = chart.getCategoryPlot();
+		plot.getDomainAxis(0).setVisible(false);
+		BarRenderer renderer = (BarRenderer) plot.getRenderer();
+		renderer.setBarPainter(new StandardBarPainter());
+		renderer.setDrawBarOutline(true);
+		CategoryAxis domainAxis = plot.getDomainAxis();
+		domainAxis.setCategoryLabelPositions(CategoryLabelPositions.UP_45);
 	}
 }

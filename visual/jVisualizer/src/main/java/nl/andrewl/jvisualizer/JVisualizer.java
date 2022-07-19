@@ -2,10 +2,7 @@ package nl.andrewl.jvisualizer;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import nl.andrewl.jvisualizer.render.CharacteristicRenderer;
-import nl.andrewl.jvisualizer.render.CountRenderer;
-import nl.andrewl.jvisualizer.render.RelevanceRenderer;
-import nl.andrewl.jvisualizer.render.SearchPerformanceRenderer;
+import nl.andrewl.jvisualizer.render.*;
 import org.jfree.chart.ChartTheme;
 import org.jfree.chart.StandardChartTheme;
 
@@ -26,7 +23,8 @@ public class JVisualizer {
 				new CountRenderer(),
 				new SearchPerformanceRenderer(),
 				new CharacteristicRenderer(),
-				new RelevanceRenderer()
+				new RelevanceRenderer(),
+				new PatternRenderer()
 		);
 		List<Thread> threads = new ArrayList<>(renderers.size());
 		for (var renderer : renderers) {
