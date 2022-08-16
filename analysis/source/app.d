@@ -13,19 +13,14 @@ int main(string[] args) {
 	AnalysisOptions options = nOpt.get();
 
 	SysTime now = Clock.currTime(UTC());
-	JSONValue result;
+	JSONValue result = JSONValue(string[string].init);
 	result["timestamp"] = now.toISOExtString;
 
 	string[] akTags = ["existence", "existence-behavioral", "existence-structural", "property", "process", "technology"];
 
 	EmailSet set = doEmailAnalyses(options.emailsJsonFilename, akTags, result);
 	doSearchAnalyses(options.searchesJsonFilename, akTags, result, set);
-
-	if (options.minifyJson) {
-		writeln(result.toJSON(false));
-	} else {
-		writeln(result.toJSON(true));
-	}
+	writeln(toJSON(result, !options.minifyJson, JSONOptions.specialFloatLiterals));
 
 	return 0;
 }

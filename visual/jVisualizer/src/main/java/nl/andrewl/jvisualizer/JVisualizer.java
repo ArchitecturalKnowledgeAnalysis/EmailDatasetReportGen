@@ -18,7 +18,12 @@ public class JVisualizer {
 
 	public static void main(String[] args) throws Exception {
 		Gson gson = new Gson();
-		JsonObject data = gson.fromJson(Files.readString(Path.of(args[0])), JsonObject.class);
+		Path file = Path.of(args[0]);
+		JsonObject data = gson.fromJson(Files.readString(file), JsonObject.class);
+		if (data == null) {
+			System.err.println("Couldn't read valid JSON data from " + file.toAbsolutePath());
+			System.exit(1);
+		}
 		List<ChartRenderer> renderers = List.of(
 				new CountRenderer(),
 				new SearchPerformanceRenderer(),
