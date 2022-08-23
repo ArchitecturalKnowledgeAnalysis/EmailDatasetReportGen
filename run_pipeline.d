@@ -40,14 +40,14 @@ void main(string[] args) {
     // Build dependencies, if needed.
     if (canFind(options, "rebuild") || !exists("intake.jar")) {
         chdir("intake");
-        runOrQuit("mvn clean package");
+        runOrQuit("./mvnw clean package");
         chdir(currentWorkingDir);
         string jarFile = findFile("intake/target", ".*-jar-with-dependencies\\.jar", false);
         copy(jarFile, "intake.jar");
     }
     if (canFind(options, "rebuild") || !exists("visualizer.jar")) {
         chdir("visual/jVisualizer");
-        runOrQuit("mvn clean package");
+        runOrQuit("./mvnw clean package");
         chdir(currentWorkingDir);
         string jarFile = findFile("visual/jVisualizer/target", ".*-jar-with-dependencies\\.jar", false);
         copy(jarFile, "visualizer.jar");
