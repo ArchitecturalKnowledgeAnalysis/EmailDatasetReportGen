@@ -11,7 +11,10 @@ It contains the following components:
 > These scripts make use of [DSH](https://code.dlang.org/packages/dsh). It's advised that you have installed `dshutil` in order to run the pipeline.
 
 ## Running the Analysis
-> Currently, this program only supports Linux x86_64 OS/Architecture.
+> Requirements:
+> - Linux Operating System
+> - x86_64 CPU Architecture
+> - Have the following programs installed: `tar`, `chmod`, `unzip`
 
 To run the analysis, first download the latest `report-gen` binary executable from the [releases](https://github.com/ArchitecturalKnowledgeAnalysis/EmailDatasetReportGen/releases) page, or clone this repository and compile `run_pipeline.d` using your installed D toolchain.
 
