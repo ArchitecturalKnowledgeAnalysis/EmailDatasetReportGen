@@ -9,3 +9,4 @@ It contains the following components:
 - `run_pipeline.d` is the main script which runs all of the the aforementioned steps in sequence to extract, analyze, and visualize the data.
 
 > These scripts make use of [DSH](https://code.dlang.org/packages/dsh). It's advised that you have installed `dshutil` in order to run the pipeline.
+

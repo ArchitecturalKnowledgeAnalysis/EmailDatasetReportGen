@@ -5,3 +5,5 @@
 /report_*
 /*.json
 /.dub
+bin/*
+lib/*
