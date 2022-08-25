@@ -10,3 +10,22 @@ It contains the following components:
 
 > These scripts make use of [DSH](https://code.dlang.org/packages/dsh). It's advised that you have installed `dshutil` in order to run the pipeline.
 
+## Running the Analysis
+> Currently, this program only supports Linux x86_64 OS/Architecture.
+
+To run the analysis, first download the latest `report-gen` binary executable from the [releases](https://github.com/ArchitecturalKnowledgeAnalysis/EmailDatasetReportGen/releases) page, or clone this repository and compile `run_pipeline.d` using your installed D toolchain.
+
+Then, simply run the executable, and provide as a single argument the path to an email dataset directory. For example,
+```sh
+./report-gen /home/andrew/Downloads/iteration-9
+```
+This will generate a new report, in the directory where this program was invoked.
+
+## The Pipeline
+This program runs a series of steps to perform analysis in a consistent, efficient manner. Here's a simple overview of the logical flow of the analysis pipeline.
+
+1. Download any missing third-party components (like DMD compiler and/or JDK17).
+2. Download and build the various programs from this repository.
+3. Use the `intake` program to read the specified dataset and extract raw information.
+4. Use the `analysis` program to process the raw data and generate aggregate statistics and analyses.
+5. Use the `visual` program to generate visualizations from the analysis produced by the previous step.
